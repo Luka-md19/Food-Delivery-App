@@ -2,16 +2,19 @@ import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import { CreateMenuDto, UpdateMenuDto, MenuResponseDto } from '../dto';
 import { Menu as MenuSchema } from '../schemas';
 import { EventsHandler, IEventHandler } from '@nestjs/cqrs';
-import { MenuCreatedEvent } from '../domain/events/menu-created.event';
-import { BaseService } from '@app/common';
+import { MenuCreatedEvent } from '../domain/events/menu/menu-created.event';
+import { ErrorHandlerService, ValidatorService } from '@app/common/exceptions';
 
 @Injectable()
-export class MenuService extends BaseService {
+export class MenuService {
   constructor(
     @Inject('IMenuDomainRepository') private readonly menuDomainRepository: any,
-    @Inject('ICategoryDomainRepository') private readonly categoryDomainRepository: any
+    @Inject('ICategoryDomainRepository') private readonly categoryDomainRepository: any,
+    private readonly errorHandler: ErrorHandlerService,
+    private readonly validator: ValidatorService
   ) {
-    super(MenuService.name);
+    // Initialize ErrorHandlerService with the service name
+    this.errorHandler = new ErrorHandlerService(MenuService.name);
   }
   
   /**
@@ -25,9 +28,9 @@ export class MenuService extends BaseService {
     pages: number;
   }> {
     try {
-      const pagination = this.validatePagination(page, limit);
+      const pagination = this.validator.validatePagination(page, limit);
       
-      this.logger.log(`Finding menus with page=${pagination.page}, limit=${pagination.limit}, filter=${JSON.stringify(filter)}`);
+      this.errorHandler.logInfo(`Finding menus with page=${pagination.page}, limit=${pagination.limit}, filter=${JSON.stringify(filter)}`);
       
       const [menus, total] = await Promise.all([
         this.menuDomainRepository.findAll(filter, pagination.page, pagination.limit),
@@ -44,7 +47,7 @@ export class MenuService extends BaseService {
         pages
       };
     } catch (error) {
-      return this.handleError(error, 'Failed to retrieve menus');
+      return this.errorHandler.handleError(error, 'Failed to find menus', [NotFoundException]);
     }
   }
 
@@ -53,9 +56,9 @@ export class MenuService extends BaseService {
    */
   async findById(id: string): Promise<MenuResponseDto> {
     try {
-      this.validateObjectId(id);
+      this.validator.validateObjectId(id);
       
-      this.logger.log(`Finding menu by ID: ${id}`);
+      this.errorHandler.logInfo(`Finding menu by ID: ${id}`);
       
       const menu = await this.menuDomainRepository.findById(id);
       
@@ -65,7 +68,7 @@ export class MenuService extends BaseService {
       
       return this.mapMenuToDto(menu);
     } catch (error) {
-      return this.handleError(error, 'Failed to retrieve menu', [NotFoundException]);
+      return this.errorHandler.handleError(error, 'Failed to retrieve menu', [NotFoundException]);
     }
   }
 
@@ -74,15 +77,15 @@ export class MenuService extends BaseService {
    */
   async findByRestaurantId(restaurantId: string, activeOnly = false): Promise<MenuResponseDto[]> {
     try {
-      this.validateObjectId(restaurantId);
+      this.validator.validateObjectId(restaurantId);
       
-      this.logger.log(`Finding menus for restaurant ID: ${restaurantId}, activeOnly=${activeOnly}`);
+      this.errorHandler.logInfo(`Finding menus for restaurant ID: ${restaurantId}, activeOnly=${activeOnly}`);
       
       const menus = await this.menuDomainRepository.findByRestaurantId(restaurantId, activeOnly);
       
       return menus.map(menu => this.mapMenuToDto(menu));
     } catch (error) {
-      return this.handleError(error, 'Failed to retrieve menus for restaurant');
+      return this.errorHandler.handleError(error, 'Failed to retrieve menus for restaurant');
     }
   }
 
@@ -91,9 +94,9 @@ export class MenuService extends BaseService {
    */
   async create(createMenuDto: CreateMenuDto): Promise<MenuResponseDto> {
     try {
-      this.validateObjectId(createMenuDto.restaurantId);
+      this.validator.validateObjectId(createMenuDto.restaurantId);
       
-      this.logger.log(`Creating menu: ${JSON.stringify(createMenuDto)}`);
+      this.errorHandler.logInfo(`Creating menu: ${JSON.stringify(createMenuDto)}`);
       
       // Create a new menu with properties from the DTO
       const newMenu = {
@@ -113,13 +116,13 @@ export class MenuService extends BaseService {
       } else if (typeof this.menuDomainRepository.create === 'function') {
         savedMenu = await this.menuDomainRepository.create(newMenu);
       } else {
-        this.logger.error('No save or create method available on menuDomainRepository');
+        this.errorHandler.logWarning('No save or create method available on menuDomainRepository', new Error('Repository implementation error'));
         throw new Error('Repository implementation error');
       }
       
       return this.mapMenuToDto(savedMenu);
     } catch (error) {
-      return this.handleError(error, 'Failed to create menu');
+      return this.errorHandler.handleError(error, 'Failed to create menu');
     }
   }
 
@@ -128,9 +131,9 @@ export class MenuService extends BaseService {
    */
   async update(id: string, updateMenuDto: UpdateMenuDto): Promise<MenuResponseDto> {
     try {
-      this.validateObjectId(id);
+      this.validator.validateObjectId(id);
       
-      this.logger.log(`Updating menu ${id}: ${JSON.stringify(updateMenuDto)}`);
+      this.errorHandler.logInfo(`Updating menu ${id}: ${JSON.stringify(updateMenuDto)}`);
       
       // Verify the menu exists
       const existingMenu = await this.menuDomainRepository.findById(id);
@@ -158,13 +161,13 @@ export class MenuService extends BaseService {
       } else if (typeof this.menuDomainRepository.update === 'function') {
         savedMenu = await this.menuDomainRepository.update(id, updatedMenu);
       } else {
-        this.logger.error('No save or update method available on menuDomainRepository');
+        this.errorHandler.logWarning('No save or update method available on menuDomainRepository', new Error('Repository implementation error'));
         throw new Error('Repository implementation error');
       }
       
       return this.mapMenuToDto(savedMenu);
     } catch (error) {
-      return this.handleError(error, 'Failed to update menu', [NotFoundException]);
+      return this.errorHandler.handleError(error, 'Failed to update menu', [NotFoundException]);
     }
   }
 
@@ -173,9 +176,9 @@ export class MenuService extends BaseService {
    */
   async delete(id: string): Promise<boolean> {
     try {
-      this.validateObjectId(id);
+      this.validator.validateObjectId(id);
       
-      this.logger.log(`Deleting menu: ${id}`);
+      this.errorHandler.logInfo(`Deleting menu: ${id}`);
       
       // Verify the menu exists
       const existingMenu = await this.menuDomainRepository.findById(id);
@@ -186,7 +189,7 @@ export class MenuService extends BaseService {
       // Delete the menu
       return await this.menuDomainRepository.delete(id);
     } catch (error) {
-      return this.handleError(error, 'Failed to delete menu', [NotFoundException]);
+      return this.errorHandler.handleError(error, 'Failed to delete menu', [NotFoundException]);
     }
   }
 
@@ -195,10 +198,10 @@ export class MenuService extends BaseService {
    */
   async addCategory(menuId: string, categoryId: string): Promise<MenuResponseDto> {
     try {
-      this.validateObjectId(menuId);
-      this.validateObjectId(categoryId);
+      this.validator.validateObjectId(menuId);
+      this.validator.validateObjectId(categoryId);
       
-      this.logger.log(`Adding category ${categoryId} to menu ${menuId}`);
+      this.errorHandler.logInfo(`Adding category ${categoryId} to menu ${menuId}`);
       
       // Verify the menu exists
       const menu = await this.menuDomainRepository.findById(menuId);
@@ -233,13 +236,13 @@ export class MenuService extends BaseService {
       } else if (typeof this.menuDomainRepository.addCategory === 'function') {
         savedMenu = await this.menuDomainRepository.addCategory(menuId, categoryId);
       } else {
-        this.logger.error('No appropriate method available on menuDomainRepository for adding categories');
+        this.errorHandler.logWarning('No appropriate method available on menuDomainRepository for adding categories', new Error('Repository implementation error'));
         throw new Error('Repository implementation error');
       }
       
       return this.mapMenuToDto(savedMenu);
     } catch (error) {
-      return this.handleError(error, 'Failed to add category to menu', [NotFoundException]);
+      return this.errorHandler.handleError(error, 'Failed to add category to menu', [NotFoundException]);
     }
   }
 
@@ -248,10 +251,10 @@ export class MenuService extends BaseService {
    */
   async removeCategory(menuId: string, categoryId: string): Promise<MenuResponseDto> {
     try {
-      this.validateObjectId(menuId);
-      this.validateObjectId(categoryId);
+      this.validator.validateObjectId(menuId);
+      this.validator.validateObjectId(categoryId);
       
-      this.logger.log(`Removing category ${categoryId} from menu ${menuId}`);
+      this.errorHandler.logInfo(`Removing category ${categoryId} from menu ${menuId}`);
       
       // Verify the menu exists
       const menu = await this.menuDomainRepository.findById(menuId);
@@ -276,13 +279,13 @@ export class MenuService extends BaseService {
       } else if (typeof this.menuDomainRepository.removeCategory === 'function') {
         savedMenu = await this.menuDomainRepository.removeCategory(menuId, categoryId);
       } else {
-        this.logger.error('No appropriate method available on menuDomainRepository for removing categories');
+        this.errorHandler.logWarning('No appropriate method available on menuDomainRepository for removing categories', new Error('Repository implementation error'));
         throw new Error('Repository implementation error');
       }
       
       return this.mapMenuToDto(savedMenu);
     } catch (error) {
-      return this.handleError(error, 'Failed to remove category from menu', [NotFoundException]);
+      return this.errorHandler.handleError(error, 'Failed to remove category from menu', [NotFoundException]);
     }
   }
 

@@ -1,7 +1,7 @@
 import { AggregateRoot } from '@nestjs/cqrs';
-import { CategoryAddedEvent } from '../events/category-added.event';
-import { CategoryRemovedEvent } from '../events/category-removed.event';
-import { MenuCreatedEvent } from '../events/menu-created.event';
+import { CategoryAddedEvent } from '../events/category/category-added.event';
+import { CategoryRemovedEvent } from '../events/category/category-removed.event';
+import { MenuCreatedEvent } from '../events/menu/menu-created.event';
 import { Availability } from '../value-objects/availability.value-object';
 
 export interface MenuProps {

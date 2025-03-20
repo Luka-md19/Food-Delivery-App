@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { IFailedMessageRepository } from '../../repositories/failed-message.repository.interface';
+import { IFailedMessageRepository } from '../../repositories/common/failed-message.repository.interface';
 import { FileStorageService } from '../services/file-storage.service';
 import { firstValueFrom } from 'rxjs';
 

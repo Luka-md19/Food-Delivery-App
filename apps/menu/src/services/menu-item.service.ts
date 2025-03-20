@@ -1,31 +1,18 @@
-import { Injectable, Inject, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
-import { BaseService } from '@app/common';
+import { Injectable, Inject, NotFoundException, BadRequestException } from '@nestjs/common';
 import { MenuItem as MenuItemSchema } from '../schemas';
 import { CreateMenuItemDto, UpdateMenuItemDto, MenuItemResponseDto } from '../dto';
-import { ObjectId } from 'mongodb';
+import { ErrorHandlerService, ValidatorService } from '@app/common/exceptions';
 
 @Injectable()
-export class MenuItemService extends BaseService {
-  protected readonly logger: Logger;
-  
+export class MenuItemService {
   constructor(
     @Inject('IMenuItemDomainRepository') private readonly menuItemDomainRepository: any,
-    @Inject('ICategoryDomainRepository') private readonly categoryDomainRepository: any
+    @Inject('ICategoryDomainRepository') private readonly categoryDomainRepository: any,
+    private readonly errorHandler: ErrorHandlerService,
+    private readonly validator: ValidatorService
   ) {
-    super(MenuItemService.name);
-  }
-
-  // Explicitly define the inherited methods to satisfy TypeScript
-  protected validateObjectId(id: string): void {
-    super.validateObjectId(id);
-  }
-
-  protected validatePagination(page = 1, limit = 10, maxLimit = 100): { page: number, limit: number } {
-    return super.validatePagination(page, limit, maxLimit);
-  }
-
-  protected handleError(error: any, message: string, knownErrorTypes: any[] = []): never {
-    return super.handleError(error, message, knownErrorTypes);
+    // Initialize ErrorHandlerService with the service name
+    this.errorHandler = new ErrorHandlerService(MenuItemService.name);
   }
 
   async findAll(page = 1, limit = 10, filter: Partial<MenuItemSchema> = {}): Promise<{
@@ -36,9 +23,9 @@ export class MenuItemService extends BaseService {
     pages: number;
   }> {
     try {
-      const pagination = this.validatePagination(page, limit);
+      const pagination = this.validator.validatePagination(page, limit);
       
-      this.logger.log(`Finding menu items with page=${pagination.page}, limit=${pagination.limit}, filter=${JSON.stringify(filter)}`);
+      this.errorHandler.logInfo(`Finding menu items with page=${pagination.page}, limit=${pagination.limit}, filter=${JSON.stringify(filter)}`);
       
       const [items, total] = await Promise.all([
         this.menuItemDomainRepository.findAll(filter, pagination.page, pagination.limit),
@@ -55,7 +42,7 @@ export class MenuItemService extends BaseService {
         pages
       };
     } catch (error) {
-      return this.handleError(error, 'Failed to retrieve menu items');
+      return this.errorHandler.handleError(error, 'Failed to retrieve menu items');
     }
   }
 
@@ -67,11 +54,11 @@ export class MenuItemService extends BaseService {
     pages: number;
   }> {
     try {
-      this.validateObjectId(categoryId);
+      this.validator.validateObjectId(categoryId);
       
-      const pagination = this.validatePagination(page, limit);
+      const pagination = this.validator.validatePagination(page, limit);
       
-      this.logger.log(`Finding menu items for category ID: ${categoryId}, page=${pagination.page}, limit=${pagination.limit}, filter=${JSON.stringify(filter)}`);
+      this.errorHandler.logInfo(`Finding menu items for category ID: ${categoryId}, page=${pagination.page}, limit=${pagination.limit}, filter=${JSON.stringify(filter)}`);
       
       // Verify the category exists
       const category = await this.categoryDomainRepository.findById(categoryId);
@@ -94,15 +81,15 @@ export class MenuItemService extends BaseService {
         pages
       };
     } catch (error) {
-      return this.handleError(error, 'Failed to retrieve menu items', [NotFoundException]);
+      return this.errorHandler.handleError(error, 'Failed to retrieve menu items for category', [NotFoundException]);
     }
   }
 
   async findById(id: string): Promise<MenuItemResponseDto> {
     try {
-      this.validateObjectId(id);
+      this.validator.validateObjectId(id);
       
-      this.logger.log(`Finding menu item by ID: ${id}`);
+      this.errorHandler.logInfo(`Finding menu item by ID: ${id}`);
       
       const item = await this.menuItemDomainRepository.findById(id);
       
@@ -112,15 +99,15 @@ export class MenuItemService extends BaseService {
       
       return this.mapToDto(item);
     } catch (error) {
-      return this.handleError(error, 'Failed to retrieve menu item', [NotFoundException]);
+      return this.errorHandler.handleError(error, 'Failed to retrieve menu item', [NotFoundException]);
     }
   }
 
   async create(createItemDto: CreateMenuItemDto): Promise<MenuItemResponseDto> {
     try {
-      this.validateObjectId(createItemDto.categoryId);
+      this.validator.validateObjectId(createItemDto.categoryId);
       
-      this.logger.log(`Creating menu item: ${JSON.stringify(createItemDto)}`);
+      this.errorHandler.logInfo(`Creating menu item: ${JSON.stringify(createItemDto)}`);
       
       // Verify the category exists
       const category = await this.categoryDomainRepository.findById(createItemDto.categoryId);
@@ -135,15 +122,15 @@ export class MenuItemService extends BaseService {
       
       return this.mapToDto(item);
     } catch (error) {
-      return this.handleError(error, 'Failed to create menu item', [NotFoundException]);
+      return this.errorHandler.handleError(error, 'Failed to create menu item', [NotFoundException]);
     }
   }
 
   async update(id: string, updateItemDto: UpdateMenuItemDto): Promise<MenuItemResponseDto> {
     try {
-      this.validateObjectId(id);
+      this.validator.validateObjectId(id);
       
-      this.logger.log(`Updating menu item ${id}: ${JSON.stringify(updateItemDto)}`);
+      this.errorHandler.logInfo(`Updating menu item ${id}: ${JSON.stringify(updateItemDto)}`);
       
       // Verify the item exists
       const existingItem = await this.menuItemDomainRepository.findById(id);
@@ -153,7 +140,7 @@ export class MenuItemService extends BaseService {
       
       // If changing category, verify the new category exists
       if (updateItemDto.categoryId && updateItemDto.categoryId !== existingItem.categoryId) {
-        this.validateObjectId(updateItemDto.categoryId);
+        this.validator.validateObjectId(updateItemDto.categoryId);
         
         const newCategory = await this.categoryDomainRepository.findById(updateItemDto.categoryId);
         if (!newCategory) {
@@ -169,15 +156,15 @@ export class MenuItemService extends BaseService {
       
       return this.mapToDto(updatedItem);
     } catch (error) {
-      return this.handleError(error, 'Failed to update menu item', [NotFoundException]);
+      return this.errorHandler.handleError(error, 'Failed to update menu item', [NotFoundException]);
     }
   }
 
   async delete(id: string): Promise<boolean> {
     try {
-      this.validateObjectId(id);
+      this.validator.validateObjectId(id);
       
-      this.logger.log(`Deleting menu item: ${id}`);
+      this.errorHandler.logInfo(`Deleting menu item: ${id}`);
       
       // Verify the item exists
       const existingItem = await this.menuItemDomainRepository.findById(id);
@@ -193,15 +180,15 @@ export class MenuItemService extends BaseService {
       
       return true;
     } catch (error) {
-      return this.handleError(error, 'Failed to delete menu item', [NotFoundException]);
+      return this.errorHandler.handleError(error, 'Failed to delete menu item', [NotFoundException]);
     }
   }
 
   async updateAvailability(id: string, available: boolean): Promise<MenuItemResponseDto> {
     try {
-      this.validateObjectId(id);
+      this.validator.validateObjectId(id);
       
-      this.logger.log(`Updating menu item availability for ${id}: ${available}`);
+      this.errorHandler.logInfo(`Updating menu item availability for ${id}: ${available}`);
       
       // Verify the item exists
       const existingItem = await this.menuItemDomainRepository.findById(id);
@@ -213,7 +200,7 @@ export class MenuItemService extends BaseService {
       
       return this.mapToDto(updatedItem);
     } catch (error) {
-      return this.handleError(error, 'Failed to update menu item availability', [NotFoundException]);
+      return this.errorHandler.handleError(error, 'Failed to update menu item availability', [NotFoundException]);
     }
   }
 

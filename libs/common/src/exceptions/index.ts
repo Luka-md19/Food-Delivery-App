@@ -1,5 +1,9 @@
 export * from './base.exception';
 export * from './validation.exception';
+export * from './jwt-secret-validation.exception';
+export * from './error-handler.service';
+export * from './validator.service';
+export * from './errors.module';
 // export * from './not-found.exception';
 // export * from './unauthorized.exception';
 // export * from './forbidden.exception';

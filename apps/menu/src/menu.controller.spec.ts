@@ -1,22 +1,27 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { MenuController } from './menu.controller';
-import { MenuService } from './menu.service';
+import { MenuController } from './controllers/menu.controller';
+import { MenuService } from './services/menu.service';
 
 describe('MenuController', () => {
-  let menuController: MenuController;
+  let controller: MenuController;
 
   beforeEach(async () => {
-    const app: TestingModule = await Test.createTestingModule({
+    const module: TestingModule = await Test.createTestingModule({
       controllers: [MenuController],
-      providers: [MenuService],
+      providers: [
+        {
+          provide: MenuService,
+          useValue: {
+            // Mock methods used by the controller
+          },
+        },
+      ],
     }).compile();
 
-    menuController = app.get<MenuController>(MenuController);
+    controller = module.get<MenuController>(MenuController);
   });
 
-  describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(menuController.getHello()).toBe('Hello World!');
-    });
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
   });
 });

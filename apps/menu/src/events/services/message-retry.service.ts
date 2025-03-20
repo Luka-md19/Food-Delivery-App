@@ -1,7 +1,7 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ClientProxy } from '@nestjs/microservices';
-import { IFailedMessageRepository } from '../../repositories/failed-message.repository.interface';
+import { IFailedMessageRepository } from '../../repositories/common/failed-message.repository.interface';
 import { FailedMessage, FailedMessageDocument } from '../../schemas/common/failed-message.schema';
 import { FileStorageService } from './file-storage.service';
 

@@ -1,6 +1,6 @@
 import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { MenuDomainException } from '../domain/exceptions/menu-domain.exception';
+import { MenuDomainException } from '../domain/exceptions/common/menu-domain.exception';
 
 /**
  * Global exception filter that handles all exceptions in a consistent way
@@ -18,43 +18,40 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
     let error = 'Internal Server Error';
+    let timestamp = new Date().toISOString();
+    let path = request.url;
     
-    // Handle different types of exceptions
+    // Handle domain exceptions
     if (exception instanceof MenuDomainException) {
-      // Domain exceptions already have the correct format
+      status = exception.getStatus();
+      message = exception.message;
+      error = HttpStatus[status];
+    } 
+    // Handle HTTP exceptions
+    else if (exception instanceof HttpException) {
       const exceptionResponse = exception.getResponse() as any;
       status = exception.getStatus();
-      message = exceptionResponse.message;
-      error = exceptionResponse.error;
-    } else if (exception instanceof HttpException) {
-      // Standard NestJS exceptions
-      status = exception.getStatus();
-      const exceptionResponse = exception.getResponse();
       
-      if (typeof exceptionResponse === 'string') {
+      // If the exception response has a message, use it
+      if (exceptionResponse && typeof exceptionResponse === 'object') {
+        message = exceptionResponse.message || message;
+        error = exceptionResponse.error || HttpStatus[status];
+      } else if (typeof exceptionResponse === 'string') {
         message = exceptionResponse;
-      } else if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
-        message = (exceptionResponse as any).message || message;
-        error = (exceptionResponse as any).error || error;
       }
-    } else if (exception instanceof Error) {
-      // Standard JavaScript errors
-      message = exception.message;
     }
     
     // Log the exception
-    this.logger.error(
-      `${request.method} ${request.url} - ${status}: ${message}`,
-      exception instanceof Error ? exception.stack : 'No stack trace'
-    );
+    this.logger.error(`${message} - ${request.method} ${request.url}`, 
+      exception instanceof Error ? exception.stack : 'No stack trace');
     
-    // Return a standardized error response
+    // Return a consistent error response
     response.status(status).json({
       statusCode: status,
       message,
       error,
-      path: request.url,
-      timestamp: new Date().toISOString(),
+      timestamp,
+      path,
     });
   }
 } 

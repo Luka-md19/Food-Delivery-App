@@ -1,6 +1,6 @@
 import { AggregateRoot } from '@nestjs/cqrs';
-import { MenuItemCreatedEvent } from '../events/menu-item-created.event';
-import { MenuItemUpdatedEvent } from '../events/menu-item-updated.event';
+import { MenuItemCreatedEvent } from '../events/menu-item/menu-item-created.event';
+import { MenuItemUpdatedEvent } from '../events/menu-item/menu-item-updated.event';
 import { DietaryInfo } from '../value-objects/dietary-info.value-object';
 
 export interface MenuItemProps {

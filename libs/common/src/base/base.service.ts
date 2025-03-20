@@ -2,8 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 
 /**
  * Base service class providing common functionality for all services
- * This is now mostly a compatibility layer as the functionality has moved
- * to more specialized services in apps/menu/src/common/errors
+ * 
+ * @deprecated This entire class is deprecated and will be removed in a future version.
+ * Please use the specialized services in @app/common/exceptions instead:
+ * - ErrorHandlerService for error handling and logging
+ * - ValidatorService for validation logic
  */
 @Injectable()
 export abstract class BaseService {
@@ -12,17 +15,18 @@ export abstract class BaseService {
 
   constructor(contextName: string) {
     this.logger = new Logger(contextName);
+    console.warn(`WARNING: ${contextName} is using deprecated BaseService. Please migrate to ErrorHandlerService and ValidatorService from @app/common/exceptions`);
   }
 
   /**
    * Validate that a string is a valid ObjectId
    * @param id The ID to validate
    * @throws BadRequestException if ID is invalid
-   * @deprecated Use ValidatorService instead
+   * @deprecated Use ValidatorService.validateObjectId() from @app/common/exceptions instead
    */
   protected validateObjectId(id: string): void {
-    // This is kept for backward compatibility
-    // You should use apps/menu/src/common/errors/validator.service.ts instead
+    console.warn('WARNING: Using deprecated validateObjectId method. Use ValidatorService.validateObjectId() from @app/common/exceptions instead');
+    
     if (!id) {
       throw new Error('ID is required');
     }
@@ -39,11 +43,11 @@ export abstract class BaseService {
    * @param limit Number of items per page
    * @param maxLimit Maximum allowed limit
    * @returns Normalized pagination parameters
-   * @deprecated Use ValidatorService instead
+   * @deprecated Use ValidatorService.validatePagination() from @app/common/exceptions instead
    */
   protected validatePagination(page = 1, limit = 10, maxLimit = 100): { page: number, limit: number } {
-    // This is kept for backward compatibility
-    // You should use apps/menu/src/common/errors/validator.service.ts instead
+    console.warn('WARNING: Using deprecated validatePagination method. Use ValidatorService.validatePagination() from @app/common/exceptions instead');
+    
     if (page < 1) page = 1;
     if (limit < 1) limit = 10;
     if (limit > maxLimit) limit = maxLimit; // Prevent excessive data retrieval
@@ -57,11 +61,10 @@ export abstract class BaseService {
    * @param message A descriptive message for the error
    * @param knownErrorTypes Array of error types that should be rethrown as-is
    * @returns Never completes normally
-   * @deprecated Use ErrorHandlerService instead
+   * @deprecated Use ErrorHandlerService.handleError() from @app/common/exceptions instead
    */
   protected handleError<T>(error: any, message: string, knownErrorTypes: any[] = []): T {
-    // This is kept for backward compatibility
-    // You should use apps/menu/src/common/errors/error-handler.service.ts instead
+    console.warn('WARNING: Using deprecated handleError method. Use ErrorHandlerService.handleError() from @app/common/exceptions instead');
     
     // If the error is one of the known error types, rethrow it
     if (knownErrorTypes.some(errorType => error instanceof errorType)) {

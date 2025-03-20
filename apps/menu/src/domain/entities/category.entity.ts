@@ -1,7 +1,7 @@
 import { AggregateRoot } from '@nestjs/cqrs';
-import { CategoryCreatedEvent } from '../events/category-created.event';
-import { CategoryItemAddedEvent } from '../events/category-item-added.event';
-import { CategoryItemRemovedEvent } from '../events/category-item-removed.event';
+import { CategoryCreatedEvent } from '../events/category/category-created.event';
+import { CategoryItemAddedEvent } from '../events/category/category-item-added.event';
+import { CategoryItemRemovedEvent } from '../events/category/category-item-removed.event';
 
 export interface CategoryProps {
   id: string;
