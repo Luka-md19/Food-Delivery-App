@@ -2,21 +2,36 @@ import { AggregateRoot } from '@nestjs/cqrs';
 import { MenuItemCreatedEvent } from '../events/menu-item/menu-item-created.event';
 import { MenuItemUpdatedEvent } from '../events/menu-item/menu-item-updated.event';
 import { DietaryInfo } from '../value-objects/dietary-info.value-object';
+import { OptionType } from '../../schemas/menu-item/menu-item.schema';
 
 export interface MenuItemProps {
-  id: string;
+  id?: string;
   categoryId: string;
   name: string;
   description?: string;
+  images?: string[];
   price: number;
   discountedPrice?: number;
-  available: boolean;
+  currency?: string;
+  preparationTime?: number;
+  calories?: number;
+  spicyLevel?: number;
+  available?: boolean;
   dietary?: {
-    vegetarian: boolean;
-    vegan: boolean;
-    glutenFree: boolean;
-    nutFree: boolean;
+    vegetarian?: boolean;
+    vegan?: boolean;
+    glutenFree?: boolean;
+    dairyFree?: boolean;
+    nutFree?: boolean;
   };
+  ingredients?: string[];
+  options?: OptionType[];
+  featured?: boolean;
+  tags?: string[];
+  metadata?: Record<string, any>;
+  createdAt?: Date;
+  updatedAt?: Date;
+  version?: number;
 }
 
 export class MenuItem extends AggregateRoot {
@@ -32,13 +47,14 @@ export class MenuItem extends AggregateRoot {
   private _calories?: number;
   private _spicyLevel?: number;
   private _dietary?: {
-    vegetarian: boolean;
-    vegan: boolean;
-    glutenFree: boolean;
-    nutFree: boolean;
+    vegetarian?: boolean;
+    vegan?: boolean;
+    glutenFree?: boolean;
+    dairyFree?: boolean;
+    nutFree?: boolean;
   };
   private _ingredients: string[] = [];
-  private _options: string[] = [];
+  private _options: OptionType[] = [];
   private _available: boolean;
   private _featured: boolean;
   private _tags: string[] = [];
@@ -53,30 +69,34 @@ export class MenuItem extends AggregateRoot {
     this._categoryId = props.categoryId;
     this._name = props.name;
     this._description = props.description;
+    this._images = props.images || [];
     this._price = props.price;
     this._discountedPrice = props.discountedPrice;
-    this._available = props.available;
+    this._currency = props.currency || 'USD';
+    this._preparationTime = props.preparationTime;
+    this._calories = props.calories;
+    this._spicyLevel = props.spicyLevel;
+    this._available = props.available !== undefined ? props.available : true;
     this._dietary = props.dietary;
-    this._images = [];
-    this._currency = 'USD';
-    this._preparationTime = undefined;
-    this._calories = undefined;
-    this._spicyLevel = undefined;
-    this._ingredients = [];
-    this._options = [];
-    this._featured = false;
-    this._tags = [];
-    this._metadata = undefined;
-    this._createdAt = new Date();
-    this._updatedAt = new Date();
-    this._version = 0;
+    this._ingredients = props.ingredients || [];
+    this._options = props.options || [];
+    this._featured = props.featured !== undefined ? props.featured : false;
+    this._tags = props.tags || [];
+    this._metadata = props.metadata;
+    this._createdAt = props.createdAt || new Date();
+    this._updatedAt = props.updatedAt || new Date();
+    this._version = props.version || 0;
 
-    this.apply(new MenuItemCreatedEvent(this));
+    // If this is a new menu item (no ID yet), apply creation event
+    if (!props.id) {
+      this.apply(new MenuItemCreatedEvent(this));
+    }
   }
 
-  // Factory method to create a new menu item
+  // Static factory method to create a new MenuItem
   public static create(props: MenuItemProps): MenuItem {
-    return new MenuItem(props);
+    const menuItem = new MenuItem(props);
+    return menuItem;
   }
 
   // Getters
@@ -124,16 +144,16 @@ export class MenuItem extends AggregateRoot {
     return this._spicyLevel;
   }
 
-  get dietary(): { vegetarian: boolean; vegan: boolean; glutenFree: boolean; nutFree: boolean } | undefined {
-    return this._dietary;
+  get dietary(): { vegetarian?: boolean; vegan?: boolean; glutenFree?: boolean; dairyFree?: boolean; nutFree?: boolean; } | undefined {
+    return this._dietary ? { ...this._dietary } : undefined;
   }
 
   get ingredients(): string[] {
     return [...this._ingredients]; // Return a copy to prevent direct modification
   }
 
-  get options(): string[] {
-    return [...this._options]; // Return a copy to prevent direct modification
+  get options(): OptionType[] {
+    return this._options.map(option => ({...option})); // Return a deep copy
   }
 
   get available(): boolean {
@@ -164,230 +184,287 @@ export class MenuItem extends AggregateRoot {
     return this._version;
   }
 
-  // Setters - for immutability, these return new instances
-  setName(name: string): MenuItem {
-    return new MenuItem({
+  // Business methods
+  public updateName(name: string): MenuItem {
+    const updatedItem = new MenuItem({
       ...this.toObject(),
       name,
+      updatedAt: new Date()
     });
+    
+    updatedItem.apply(new MenuItemUpdatedEvent(updatedItem.id, { name }));
+    return updatedItem;
   }
 
-  setDescription(description: string): MenuItem {
-    return new MenuItem({
+  public updateDescription(description: string): MenuItem {
+    const updatedItem = new MenuItem({
       ...this.toObject(),
       description,
+      updatedAt: new Date()
     });
+    
+    updatedItem.apply(new MenuItemUpdatedEvent(updatedItem.id, { description }));
+    return updatedItem;
   }
 
-  setPrice(price: number): MenuItem {
-    return new MenuItem({
+  public updatePrice(price: number): MenuItem {
+    const updatedItem = new MenuItem({
       ...this.toObject(),
       price,
+      updatedAt: new Date()
     });
+    
+    updatedItem.apply(new MenuItemUpdatedEvent(updatedItem.id, { price }));
+    return updatedItem;
   }
 
-  setDiscountedPrice(discountedPrice: number | undefined): MenuItem {
-    return new MenuItem({
+  public updateDiscountedPrice(discountedPrice: number | undefined): MenuItem {
+    const updatedItem = new MenuItem({
       ...this.toObject(),
       discountedPrice,
+      updatedAt: new Date()
     });
+    
+    updatedItem.apply(new MenuItemUpdatedEvent(updatedItem.id, { discountedPrice }));
+    return updatedItem;
   }
 
-  setAvailable(available: boolean): MenuItem {
-    return new MenuItem({
+  public updateAvailability(available: boolean): MenuItem {
+    const updatedItem = new MenuItem({
       ...this.toObject(),
       available,
+      updatedAt: new Date()
     });
+    
+    updatedItem.apply(new MenuItemUpdatedEvent(updatedItem.id, { available }));
+    return updatedItem;
   }
 
-  setDietary(dietary: { vegetarian: boolean; vegan: boolean; glutenFree: boolean; nutFree: boolean } | undefined): MenuItem {
-    return new MenuItem({
+  public updateFeatured(featured: boolean): MenuItem {
+    const updatedItem = new MenuItem({
+      ...this.toObject(),
+      featured,
+      updatedAt: new Date()
+    });
+    
+    updatedItem.apply(new MenuItemUpdatedEvent(updatedItem.id, { featured }));
+    return updatedItem;
+  }
+
+  public updateIngredients(ingredients: string[]): MenuItem {
+    const updatedItem = new MenuItem({
+      ...this.toObject(),
+      ingredients,
+      updatedAt: new Date()
+    });
+    
+    updatedItem.apply(new MenuItemUpdatedEvent(updatedItem.id, { ingredients }));
+    return updatedItem;
+  }
+
+  public updateOptions(options: OptionType[]): MenuItem {
+    const updatedItem = new MenuItem({
+      ...this.toObject(),
+      options,
+      updatedAt: new Date()
+    });
+    
+    updatedItem.apply(new MenuItemUpdatedEvent(updatedItem.id, { options }));
+    return updatedItem;
+  }
+
+  public addOption(option: OptionType): MenuItem {
+    const updatedOptions = [...this._options, option];
+    
+    const updatedItem = new MenuItem({
+      ...this.toObject(),
+      options: updatedOptions,
+      updatedAt: new Date()
+    });
+    
+    updatedItem.apply(new MenuItemUpdatedEvent(updatedItem.id, { options: updatedOptions }));
+    return updatedItem;
+  }
+
+  public updateOption(optionIndex: number, option: OptionType): MenuItem {
+    if (optionIndex < 0 || optionIndex >= this._options.length) {
+      throw new Error(`Option at index ${optionIndex} not found`);
+    }
+    
+    const updatedOptions = [...this._options];
+    updatedOptions[optionIndex] = option;
+    
+    const updatedItem = new MenuItem({
+      ...this.toObject(),
+      options: updatedOptions,
+      updatedAt: new Date()
+    });
+    
+    updatedItem.apply(new MenuItemUpdatedEvent(updatedItem.id, { options: updatedOptions }));
+    return updatedItem;
+  }
+
+  public removeOption(optionIndex: number): MenuItem {
+    if (optionIndex < 0 || optionIndex >= this._options.length) {
+      throw new Error(`Option at index ${optionIndex} not found`);
+    }
+    
+    const updatedOptions = [...this._options];
+    updatedOptions.splice(optionIndex, 1);
+    
+    const updatedItem = new MenuItem({
+      ...this.toObject(),
+      options: updatedOptions,
+      updatedAt: new Date()
+    });
+    
+    updatedItem.apply(new MenuItemUpdatedEvent(updatedItem.id, { options: updatedOptions }));
+    return updatedItem;
+  }
+
+  public updateTags(tags: string[]): MenuItem {
+    const updatedItem = new MenuItem({
+      ...this.toObject(),
+      tags,
+      updatedAt: new Date()
+    });
+    
+    updatedItem.apply(new MenuItemUpdatedEvent(updatedItem.id, { tags }));
+    return updatedItem;
+  }
+
+  public updateDietary(dietary: { vegetarian?: boolean; vegan?: boolean; glutenFree?: boolean; dairyFree?: boolean; nutFree?: boolean; }): MenuItem {
+    const updatedItem = new MenuItem({
       ...this.toObject(),
       dietary,
+      updatedAt: new Date()
     });
+    
+    updatedItem.apply(new MenuItemUpdatedEvent(updatedItem.id, { dietary }));
+    return updatedItem;
   }
 
-  // Helper method to convert to plain object
+  public updateImages(images: string[]): MenuItem {
+    const updatedItem = new MenuItem({
+      ...this.toObject(),
+      images,
+      updatedAt: new Date()
+    });
+    
+    updatedItem.apply(new MenuItemUpdatedEvent(updatedItem.id, { images }));
+    return updatedItem;
+  }
+
+  /**
+   * Update multiple details of the menu item at once
+   * @param updates Object containing the properties to update
+   * @returns Updated MenuItem entity
+   */
+  public updateDetails(updates: Partial<MenuItemProps>): MenuItem {
+    const currentProps = this.toObject();
+    
+    // Create a new props object with updates applied
+    const updatedProps = {
+      ...currentProps,
+      ...updates,
+      updatedAt: new Date()
+    };
+    
+    // Create a new MenuItem with the updated properties
+    const updatedItem = new MenuItem(updatedProps);
+    
+    // Apply the update event
+    updatedItem.apply(new MenuItemUpdatedEvent(updatedItem.id, updates));
+    
+    return updatedItem;
+  }
+
+  // Helper method to convert entity to plain object
   toObject(): MenuItemProps {
     return {
       id: this._id,
       categoryId: this._categoryId,
       name: this._name,
       description: this._description,
+      images: [...this._images],
       price: this._price,
       discountedPrice: this._discountedPrice,
+      currency: this._currency,
+      preparationTime: this._preparationTime,
+      calories: this._calories,
+      spicyLevel: this._spicyLevel,
+      dietary: this._dietary ? { ...this._dietary } : undefined,
+      ingredients: [...this._ingredients],
+      options: this._options.map(option => ({...option})),
       available: this._available,
-      dietary: this._dietary,
+      featured: this._featured,
+      tags: [...this._tags],
+      metadata: this._metadata ? { ...this._metadata } : undefined,
+      createdAt: this._createdAt,
+      updatedAt: this._updatedAt,
+      version: this._version
     };
-  }
-
-  // Business methods
-  public updateDetails(updates: Partial<Omit<MenuItemProps, 'id' | 'categoryId'>>): void {
-    let changed = false;
-
-    if (updates.name !== undefined && updates.name !== this._name) {
-      this._name = updates.name;
-      changed = true;
-    }
-    
-    if (updates.description !== undefined && updates.description !== this._description) {
-      this._description = updates.description;
-      changed = true;
-    }
-    
-    if (updates.price !== undefined && updates.price !== this._price) {
-      this._price = updates.price;
-      changed = true;
-    }
-    
-    if (updates.discountedPrice !== undefined && updates.discountedPrice !== this._discountedPrice) {
-      this._discountedPrice = updates.discountedPrice;
-      changed = true;
-    }
-    
-    if (updates.available !== undefined && updates.available !== this._available) {
-      this._available = updates.available;
-      changed = true;
-    }
-    
-    if (updates.dietary !== undefined) {
-      this._dietary = updates.dietary;
-      changed = true;
-    }
-    
-    // Handle other properties that aren't in MenuItemProps but are in the entity
-    if (arguments[0]) {
-      const additionalUpdates = arguments[0] as any;
-      
-      if (additionalUpdates.currency !== undefined && additionalUpdates.currency !== this._currency) {
-        this._currency = additionalUpdates.currency;
-        changed = true;
-      }
-      
-      if (additionalUpdates.preparationTime !== undefined && additionalUpdates.preparationTime !== this._preparationTime) {
-        this._preparationTime = additionalUpdates.preparationTime;
-        changed = true;
-      }
-      
-      if (additionalUpdates.calories !== undefined && additionalUpdates.calories !== this._calories) {
-        this._calories = additionalUpdates.calories;
-        changed = true;
-      }
-      
-      if (additionalUpdates.spicyLevel !== undefined && additionalUpdates.spicyLevel !== this._spicyLevel) {
-        this._spicyLevel = additionalUpdates.spicyLevel;
-        changed = true;
-      }
-      
-      if (additionalUpdates.featured !== undefined && additionalUpdates.featured !== this._featured) {
-        this._featured = additionalUpdates.featured;
-        changed = true;
-      }
-      
-      if (additionalUpdates.metadata !== undefined) {
-        this._metadata = additionalUpdates.metadata;
-        changed = true;
-      }
-    }
-    
-    if (changed) {
-      this._updatedAt = new Date();
-      this._version += 1;
-      this.apply(new MenuItemUpdatedEvent(this.id, this._categoryId));
-    }
-  }
-
-  public updateImages(images: string[]): void {
-    this._images = [...images];
-    this._updatedAt = new Date();
-    this._version += 1;
-  }
-
-  public updateTags(tags: string[]): void {
-    this._tags = [...tags];
-    this._updatedAt = new Date();
-    this._version += 1;
-  }
-
-  public addIngredient(ingredientId: string): void {
-    if (this._ingredients.includes(ingredientId)) {
-      return; // Ingredient already exists
-    }
-    
-    this._ingredients.push(ingredientId);
-    this._updatedAt = new Date();
-    this._version += 1;
-  }
-
-  public removeIngredient(ingredientId: string): void {
-    const index = this._ingredients.indexOf(ingredientId);
-    if (index === -1) {
-      return; // Ingredient doesn't exist
-    }
-    
-    this._ingredients.splice(index, 1);
-    this._updatedAt = new Date();
-    this._version += 1;
-  }
-
-  public addOption(optionId: string): void {
-    if (this._options.includes(optionId)) {
-      return; // Option already exists
-    }
-    
-    this._options.push(optionId);
-    this._updatedAt = new Date();
-    this._version += 1;
-  }
-
-  public removeOption(optionId: string): void {
-    const index = this._options.indexOf(optionId);
-    if (index === -1) {
-      return; // Option doesn't exist
-    }
-    
-    this._options.splice(index, 1);
-    this._updatedAt = new Date();
-    this._version += 1;
   }
 
   // Method to reconstruct a MenuItem entity from persistence
   public static fromPersistence(data: any): MenuItem {
+    // Make sure we have an ID from the database
+    const id = data._id ? 
+      (typeof data._id === 'object' ? data._id.toString() : data._id.toString()) : 
+      (data.id ? data.id.toString() : undefined);
+    
+    if (!id) {
+      throw new Error('Missing ID in persistence data for MenuItem');
+    }
+    
+    // Make sure we have a categoryId
+    const categoryId = data.categoryId ? 
+      (typeof data.categoryId === 'object' ? data.categoryId.toString() : data.categoryId.toString()) : 
+      '';
+    
+    if (!categoryId) {
+      console.warn(`MenuItem ${id} has no categoryId`);
+    }
+    
     const menuItem = new MenuItem({
-      id: data._id.toString(),
-      categoryId: data.categoryId.toString(),
-      name: data.name,
-      price: data.price,
+      id,
+      categoryId,
+      name: data.name || 'Unnamed Item',
+      price: typeof data.price === 'number' ? data.price : 0,
       description: data.description,
       discountedPrice: data.discountedPrice,
       available: data.available !== undefined ? data.available : true,
       dietary: data.dietary ? {
-        vegetarian: data.dietary.vegetarian,
-        vegan: data.dietary.vegan,
-        glutenFree: data.dietary.glutenFree,
-        nutFree: data.dietary.nutFree,
+        vegetarian: Boolean(data.dietary.vegetarian),
+        vegan: Boolean(data.dietary.vegan),
+        glutenFree: Boolean(data.dietary.glutenFree),
+        nutFree: Boolean(data.dietary.nutFree),
       } : undefined,
     });
     
     // Set the properties that aren't part of the constructor
     if (data.images && Array.isArray(data.images)) {
-      data.images.forEach((image: any) => {
-        menuItem._images.push(image.toString());
-      });
+      menuItem._images = [...data.images.map((image: any) => image.toString())];
     }
     
     if (data.ingredients && Array.isArray(data.ingredients)) {
-      data.ingredients.forEach((ingredientId: any) => {
-        menuItem._ingredients.push(ingredientId.toString());
-      });
+      menuItem._ingredients = [...data.ingredients.map((ingredient: any) => ingredient.toString())];
     }
     
     if (data.options && Array.isArray(data.options)) {
-      data.options.forEach((optionId: any) => {
-        menuItem._options.push(optionId.toString());
-      });
+      menuItem._options = [...data.options.map((option: any) => option as OptionType)];
     }
     
+    if (data.tags && Array.isArray(data.tags)) {
+      menuItem._tags = [...data.tags.map((tag: any) => tag.toString())];
+    }
+    
+    menuItem._currency = data.currency || 'USD';
+    menuItem._preparationTime = data.preparationTime;
+    menuItem._calories = data.calories;
+    menuItem._spicyLevel = data.spicyLevel;
+    menuItem._featured = data.featured === true;
+    menuItem._metadata = data.metadata || {};
     menuItem._createdAt = data.createdAt || new Date();
     menuItem._updatedAt = data.updatedAt || new Date();
     menuItem._version = data.version || 0;
@@ -401,24 +478,43 @@ export class MenuItem extends AggregateRoot {
       _id: this._id,
       categoryId: this._categoryId,
       name: this._name,
-      description: this._description,
-      images: this._images,
+      description: this._description || '',
+      images: Array.isArray(this._images) ? this._images : [],
       price: this._price,
       discountedPrice: this._discountedPrice,
-      currency: this._currency,
+      currency: this._currency || 'USD',
       preparationTime: this._preparationTime,
       calories: this._calories,
       spicyLevel: this._spicyLevel,
-      dietary: this._dietary,
-      ingredients: this._ingredients,
-      options: this._options,
-      available: this._available,
-      featured: this._featured,
-      tags: this._tags,
-      metadata: this._metadata,
-      createdAt: this._createdAt,
-      updatedAt: this._updatedAt,
-      version: this._version,
+      dietary: this._dietary || {
+        vegetarian: false,
+        vegan: false,
+        glutenFree: false,
+        nutFree: false
+      },
+      ingredients: Array.isArray(this._ingredients) ? this._ingredients : [],
+      options: Array.isArray(this._options) ? this._options : [],
+      available: this._available !== undefined ? this._available : true,
+      featured: this._featured !== undefined ? this._featured : false,
+      tags: Array.isArray(this._tags) ? this._tags : [],
+      metadata: this._metadata || {},
+      createdAt: this._createdAt || new Date(),
+      updatedAt: this._updatedAt || new Date(),
+      version: this._version || 0,
     };
+  }
+
+  /**
+   * Get all uncommitted events from the aggregate root
+   */
+  getUncommittedEvents(): any[] {
+    return super.getUncommittedEvents();
+  }
+
+  /**
+   * Commit all events in the aggregate root
+   */
+  commit(): void {
+    super.commit();
   }
 }
