@@ -43,6 +43,26 @@ export const RATE_LIMIT_CONFIGS = {
     addCategory: { ttl: 60, limit: 20 }, // 20 requests per minute (standard for write operation)
     removeCategory: { ttl: 60, limit: 10 }, // 10 requests per minute (stricter for delete operation)
     
+    // Category endpoints
+    findAllCategories: { ttl: 60, limit: 100 }, // 100 requests per minute (relaxed for read operation)
+    findCategoryById: { ttl: 60, limit: 100 }, // 100 requests per minute (relaxed for read operation)
+    addItemToCategory: { ttl: 60, limit: 20 }, // 20 requests per minute (standard for write operation)
+    removeItemFromCategory: { ttl: 60, limit: 10 }, // 10 requests per minute (stricter for delete operation)
+    
+    // Menu items endpoints
+    findAllItems: { ttl: 60, limit: 100 }, // 100 requests per minute (relaxed for read operation)
+    findItemById: { ttl: 60, limit: 100 }, // 100 requests per minute (relaxed for read operation)
+    createItem: { ttl: 60, limit: 30 }, // 30 requests per minute (standard for write operation)
+    updateItem: { ttl: 60, limit: 30 }, // 30 requests per minute (standard for write operation)
+    deleteItem: { ttl: 60, limit: 15 }, // 15 requests per minute (stricter for delete operation)
+    updateItemAvailability: { ttl: 60, limit: 30 }, // 30 requests per minute (standard for write operation)
+    
+    // Menu item options endpoints
+    getItemOptions: { ttl: 60, limit: 100 }, // 100 requests per minute (relaxed for read operation)
+    addItemOption: { ttl: 60, limit: 30 }, // 30 requests per minute (standard for write operation)
+    updateItemOption: { ttl: 60, limit: 30 }, // 30 requests per minute (standard for write operation)
+    removeItemOption: { ttl: 60, limit: 15 }, // 15 requests per minute (stricter for delete operation)
+    
     // Legacy menu configurations (keeping for backward compatibility)
     createMenu: { ttl: 60, limit: 10 }, // 10 requests per minute
     updateMenu: { ttl: 60, limit: 20 }, // 20 requests per minute
@@ -52,11 +72,6 @@ export const RATE_LIMIT_CONFIGS = {
     createCategory: { ttl: 60, limit: 20 }, // 20 requests per minute
     updateCategory: { ttl: 60, limit: 20 }, // 20 requests per minute
     deleteCategory: { ttl: 60, limit: 10 }, // 10 requests per minute
-    
-    // Item management
-    createItem: { ttl: 60, limit: 30 }, // 30 requests per minute
-    updateItem: { ttl: 60, limit: 30 }, // 30 requests per minute
-    deleteItem: { ttl: 60, limit: 15 }, // 15 requests per minute
     
     // Read operations (higher limits)
     getMenus: { ttl: 60, limit: 100 }, // 100 requests per minute
@@ -121,6 +136,26 @@ export function getRateLimitConfigForPath(path: string, method: string = 'GET'):
     { pattern: /^\/menu\/[a-zA-Z0-9-]+$/, method: 'DELETE', config: RATE_LIMIT_CONFIGS.MENU.delete },
     { pattern: /^\/menu\/[a-zA-Z0-9-]+\/categories$/, method: 'POST', config: RATE_LIMIT_CONFIGS.MENU.addCategory },
     { pattern: /^\/menu\/[a-zA-Z0-9-]+\/categories\/[a-zA-Z0-9-]+$/, method: 'DELETE', config: RATE_LIMIT_CONFIGS.MENU.removeCategory },
+    
+    // Category service endpoints
+    { pattern: /^\/categories$/, method: 'GET', config: RATE_LIMIT_CONFIGS.MENU.findAllCategories },
+    { pattern: /^\/categories\/[a-zA-Z0-9-]+$/, method: 'GET', config: RATE_LIMIT_CONFIGS.MENU.findCategoryById },
+    { pattern: /^\/categories\/[a-zA-Z0-9-]+\/items\/[a-zA-Z0-9-]+$/, method: 'POST', config: RATE_LIMIT_CONFIGS.MENU.addItemToCategory },
+    { pattern: /^\/categories\/[a-zA-Z0-9-]+\/items\/[a-zA-Z0-9-]+$/, method: 'DELETE', config: RATE_LIMIT_CONFIGS.MENU.removeItemFromCategory },
+    
+    // Menu items endpoints
+    { pattern: /^\/menu-items$/, method: 'GET', config: RATE_LIMIT_CONFIGS.MENU.findAllItems },
+    { pattern: /^\/menu-items\/[a-zA-Z0-9-]+$/, method: 'GET', config: RATE_LIMIT_CONFIGS.MENU.findItemById },
+    { pattern: /^\/menu-items$/, method: 'POST', config: RATE_LIMIT_CONFIGS.MENU.createItem },
+    { pattern: /^\/menu-items\/[a-zA-Z0-9-]+$/, method: 'PUT', config: RATE_LIMIT_CONFIGS.MENU.updateItem },
+    { pattern: /^\/menu-items\/[a-zA-Z0-9-]+$/, method: 'DELETE', config: RATE_LIMIT_CONFIGS.MENU.deleteItem },
+    { pattern: /^\/menu-items\/[a-zA-Z0-9-]+\/availability$/, method: 'PATCH', config: RATE_LIMIT_CONFIGS.MENU.updateItemAvailability },
+    
+    // Menu item options endpoints
+    { pattern: /^\/menu-items\/[a-zA-Z0-9-]+\/options$/, method: 'GET', config: RATE_LIMIT_CONFIGS.MENU.getItemOptions },
+    { pattern: /^\/menu-items\/[a-zA-Z0-9-]+\/options$/, method: 'POST', config: RATE_LIMIT_CONFIGS.MENU.addItemOption },
+    { pattern: /^\/menu-items\/[a-zA-Z0-9-]+\/options\/\d+$/, method: 'PUT', config: RATE_LIMIT_CONFIGS.MENU.updateItemOption },
+    { pattern: /^\/menu-items\/[a-zA-Z0-9-]+\/options\/\d+$/, method: 'DELETE', config: RATE_LIMIT_CONFIGS.MENU.removeItemOption },
   ];
   
   // Find the first matching pattern with matching method
