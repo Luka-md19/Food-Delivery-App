@@ -1,11 +1,12 @@
 import { NestFactory } from '@nestjs/core';
 import { MenuModule } from './menu.module';
 import { ValidationPipe } from '@nestjs/common';
-import { AppConfigService, LoggerService, LoggerFactory } from '@app/common';
+import { AppConfigService, LoggerService, LoggerFactory, JwtAuthGuard, TokenBlacklistService } from '@app/common';
 import { Transport } from '@nestjs/microservices';
 import { AllExceptionsFilter } from './filters';
 import * as amqp from 'amqplib';
 import { Swaggerservice } from '@app/common';
+import { JwtService } from '@nestjs/jwt';
 
 /**
  * Check if RabbitMQ is ready
@@ -13,7 +14,7 @@ import { Swaggerservice } from '@app/common';
  * @param maxRetries Maximum number of retries
  * @param retryDelay Delay between retries in milliseconds
  */
-async function checkRabbitMQConnection(url: string, maxRetries = 10, retryDelay = 5000): Promise<boolean> {
+ async function checkRabbitMQConnection(url: string, maxRetries = 10, retryDelay = 5000): Promise<boolean> {
   const logger = LoggerFactory.getLogger('RabbitMQ Connection Check');
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -56,9 +57,28 @@ async function bootstrap() {
     whitelist: true,
     forbidNonWhitelisted: true,
   }));
+
+  // Add middleware to handle JWT tokens properly for both API and Swagger
+  app.use((req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      // The token is valid, continue
+      next();
+    } else if (req.url.includes('/docs') || req.url.includes('/api-json')) {
+      // Swagger UI requests - skip authentication
+      next();
+    } else {
+      // For other requests, continue normally
+      next();
+    }
+  });
+  
+  // Get dependencies for AllExceptionsFilter using their token names
+  const failedMessageRepository = app.get('IFailedMessageRepository');
+  const fileStorageService = app.get('IFileStorageService');
   
   // Apply global exception filter
-  app.useGlobalFilters(new AllExceptionsFilter());
+  app.useGlobalFilters(new AllExceptionsFilter(failedMessageRepository, fileStorageService));
   
   // Configure Swagger documentation using the shared service
   Swaggerservice.setup(app, {
@@ -112,6 +132,7 @@ async function bootstrap() {
   logger.log(`HTTP server running on port ${configService.port}`);
   logger.log(`TCP server running on port ${configService.get('TCP_PORT', 3003)}`);
   logger.log(`RabbitMQ consumer started for queue: ${rabbitmqQueue}`);
+  logger.log(`Swagger documentation available at ${configService.get('SWAGGER_PATH', 'api/docs')}`);
 }
 
 bootstrap();

@@ -3,20 +3,30 @@ import { Injectable, UnauthorizedException, Logger, InternalServerErrorException
 import { JwtService } from '@nestjs/jwt';
 import { TokenBlacklistService } from '@app/common/redis/token-blacklist.service';
 import { ExecutionContext } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 
 @Injectable()
-export class JwtAuthGuard {
+export class JwtAuthGuard extends AuthGuard('jwt') {
   private readonly logger = new Logger(JwtAuthGuard.name);
 
   constructor(
     private readonly jwtService: JwtService,
     private readonly tokenBlacklistService: TokenBlacklistService,
-  ) {}
+  ) {
+    super();
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    // First call the parent canActivate to validate JWT token
+    const canActivate = await super.canActivate(context);
+    
+    if (!canActivate) {
+      return false;
+    }
+    
     const request = context.switchToHttp().getRequest();
     const authHeader = request.headers.authorization;
-
+    
     if (!authHeader) {
       throw new UnauthorizedException('Missing Authorization Header');
     }
@@ -34,21 +44,7 @@ export class JwtAuthGuard {
         throw new UnauthorizedException('Token has been revoked');
       }
 
-      try {
-        const decoded = this.jwtService.verify(token);
-        request.user = decoded;
-        return true;
-      } catch (error) {
-        this.logger.warn(`JWT verification failed: ${error.message}`);
-        
-        if (error.name === 'TokenExpiredError') {
-          throw new UnauthorizedException('Token has expired');
-        } else if (error.name === 'JsonWebTokenError') {
-          throw new UnauthorizedException('Invalid token signature');
-        } else {
-          throw new UnauthorizedException('Invalid token');
-        }
-      }
+      return true;
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;
@@ -57,5 +53,34 @@ export class JwtAuthGuard {
       this.logger.error(`Unexpected error in JWT guard: ${error.message}`, error.stack);
       throw new InternalServerErrorException('Authentication system error');
     }
+  }
+
+  // Override handleRequest to customize error handling
+  handleRequest(err, user, info, context) {
+    // Check if this is a Swagger UI request
+    const req = context.switchToHttp().getRequest();
+    const isSwaggerRequest = req.url && (
+      req.url.includes('/docs') || 
+      req.url.includes('/api-json') ||
+      req.headers['x-swagger-ui'] === 'true'
+    );
+
+    // If it's a Swagger request and no user, allow it for documentation
+    if (isSwaggerRequest && !user) {
+      this.logger.debug('Swagger UI request detected - bypassing authentication');
+      return { userId: 'swagger-ui', roles: [] };
+    }
+
+    // You can add additional error handling or logging here
+    if (err || !user) {
+      if (err) {
+        this.logger.warn(`JWT validation error: ${err.message}`);
+      } else if (!user) {
+        this.logger.warn('No user found from JWT token');
+      }
+      throw err || new UnauthorizedException('Authentication failed');
+    }
+    
+    return user;
   }
 }

@@ -3,7 +3,8 @@ import { NestFactory, Reflector } from '@nestjs/core';
 import { Transport } from '@nestjs/microservices';
 import { ValidationPipe } from '@nestjs/common';
 import { AuthModule } from './auth.module';
-import { AppConfigService, LoggerService, Swaggerservice, LoggerFactory } from '@app/common';
+import { AppConfigService, LoggerService, Swaggerservice, LoggerFactory, JwtAuthGuard, TokenBlacklistService } from '@app/common';
+import { JwtService } from '@nestjs/jwt';
 
 async function bootstrap() {
   // Create the application with the custom logger
@@ -22,6 +23,21 @@ async function bootstrap() {
     })
   );
   app.enableCors();
+
+  // Add middleware to handle JWT tokens properly for both API and Swagger
+  app.use((req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      // The token is valid, continue
+      next();
+    } else if (req.url.includes('/docs') || req.url.includes('/api-json')) {
+      // Swagger UI requests - skip authentication
+      next();
+    } else {
+      // For other requests, continue normally
+      next();
+    }
+  });
 
   // Swagger setup
   Swaggerservice.setup(app, {

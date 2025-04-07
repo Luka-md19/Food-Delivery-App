@@ -25,6 +25,8 @@ export class Swaggerservice {
                     scheme: 'bearer',
                     bearerFormat: 'JWT',
                     name: 'Authorization',
+                    in: 'header',
+                    description: 'Enter your JWT token here',
                 },
                 SWAGGER_API_AUTH_NAME,
             );
@@ -34,9 +36,28 @@ export class Swaggerservice {
         }
 
         const document = SwaggerModule.createDocument(app, builder.build());
+        
+        // Configure security requirements for Swagger UI
+        document.security = [{
+            [SWAGGER_API_AUTH_NAME]: [],
+        }];
+
         SwaggerModule.setup(finalConfig.apiPath, app, document, {
             swaggerOptions: {
                 persistAuthorization: true,
+                authAction: {
+                    [SWAGGER_API_AUTH_NAME]: {
+                        name: SWAGGER_API_AUTH_NAME,
+                        schema: {
+                            type: 'http',
+                            in: 'header',
+                            name: 'Authorization',
+                            bearerFormat: 'JWT',
+                            scheme: 'bearer',
+                        },
+                        value: '',
+                    },
+                },
             },
         });
     }
