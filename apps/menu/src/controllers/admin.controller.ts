@@ -6,15 +6,19 @@ import {
   Query, 
   HttpStatus, 
   DefaultValuePipe,
-  ParseIntPipe
+  ParseIntPipe,
+  UseGuards
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { ApiController } from '@app/common/swagger';
+import { ApiController, ApiAuth } from '@app/common/swagger';
+import { JwtAuthGuard } from '@app/common';
 import { FailedMessageDto } from '../dto/common/failed-message.dto';
 import { AdminService } from '../services/admin.service';
 
 @Controller('api/admin')
 @ApiController('admin')
+@UseGuards(JwtAuthGuard)
+@ApiAuth()
 export class AdminController {
   constructor(
     private readonly adminService: AdminService

@@ -12,13 +12,15 @@ import {
     ValidationPipe,
     UsePipes,
     ParseIntPipe,
-    DefaultValuePipe
+    DefaultValuePipe,
+    UseGuards
   } from '@nestjs/common';
   import { ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
   import { MenuService } from '../services';
   import { CreateMenuDto, UpdateMenuDto, MenuResponseDto } from '../dto';
-  import { ApiController, ApiPaginatedResponse, ApiPaginatioQuery } from '@app/common/swagger';
+  import { ApiController, ApiPaginatedResponse, ApiPaginatioQuery, ApiAuth } from '@app/common/swagger';
   import { RateLimit } from '@app/common/rate-limiter';
+  import { JwtAuthGuard, RolesGuard, Roles, UserRole } from '@app/common';
   
   @Controller('menus')
   @ApiController('menus')
@@ -29,14 +31,14 @@ import {
     @RateLimit('MENU', 'findAll')
     @ApiOperation({ summary: 'Get all menus with pagination' })
     @ApiPaginatioQuery()
-    @ApiQuery({ name: 'restaurantId', required: false, type: String, description: 'Filter menus by restaurant ID' })
-    @ApiQuery({ name: 'activeOnly', required: false, type: Boolean, description: 'Filter to active menus only' })
+    @ApiQuery({ name: 'restaurantId', required: false, description: 'Restaurant ID to filter by' })
+    @ApiQuery({ name: 'active', required: false, type: Boolean, description: 'Filter to active menus only' })
     @ApiPaginatedResponse(MenuResponseDto, 'Successfully retrieved paginated menus')
     async findAll(
       @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
       @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
       @Query('restaurantId') restaurantId?: string,
-      @Query('activeOnly', new DefaultValuePipe(false)) activeOnly?: boolean
+      @Query('active', new DefaultValuePipe(false)) active?: boolean
     ): Promise<{
       items: MenuResponseDto[];
       total: number;
@@ -44,20 +46,10 @@ import {
       limit: number;
       pages: number;
     }> {
-      // If restaurantId is provided, get menus for that restaurant
-      if (restaurantId) {
-        const menus = await this.menuService.findByRestaurantId(restaurantId, activeOnly);
-        return {
-          items: menus,
-          total: menus.length,
-          page: 1,
-          limit: menus.length,
-          pages: 1
-        };
-      }
-      
-      // Otherwise, get all menus with pagination
-      return this.menuService.findAll(page, limit, { active: activeOnly || undefined });
+      return this.menuService.findAll(page, limit, {
+        restaurantId: restaurantId || undefined,
+        active: active || undefined
+      });
     }
   
     @Get(':id')
@@ -72,40 +64,58 @@ import {
     }
   
     @Post()
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
+    @ApiAuth()
     @RateLimit('MENU', 'create')
     @ApiOperation({ summary: 'Create a new menu' })
     @ApiResponse({ status: HttpStatus.CREATED, description: 'Menu created', type: MenuResponseDto })
     @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input' })
+    @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
+    @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Forbidden - insufficient permissions' })
     @UsePipes(new ValidationPipe({ transform: true }))
     async create(@Body() createMenuDto: CreateMenuDto): Promise<MenuResponseDto> {
       return this.menuService.create(createMenuDto);
     }
   
     @Put(':id')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
+    @ApiAuth()
     @RateLimit('MENU', 'update')
     @ApiOperation({ summary: 'Update a menu' })
     @ApiParam({ name: 'id', description: 'Menu ID' })
     @ApiResponse({ status: HttpStatus.OK, description: 'Menu updated', type: MenuResponseDto })
     @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Menu not found' })
     @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input or ID format' })
+    @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
+    @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Forbidden - insufficient permissions' })
     @UsePipes(new ValidationPipe({ transform: true }))
     async update(@Param('id') id: string, @Body() updateMenuDto: UpdateMenuDto): Promise<MenuResponseDto> {
       return this.menuService.update(id, updateMenuDto);
     }
   
     @Delete(':id')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
+    @ApiAuth()
     @RateLimit('MENU', 'delete')
     @ApiOperation({ summary: 'Delete a menu' })
     @ApiParam({ name: 'id', description: 'Menu ID' })
     @ApiResponse({ status: HttpStatus.NO_CONTENT, description: 'Menu deleted' })
     @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Menu not found' })
     @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid ID format' })
+    @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
+    @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Forbidden - insufficient permissions' })
     @HttpCode(HttpStatus.NO_CONTENT)
     async delete(@Param('id') id: string): Promise<void> {
       await this.menuService.delete(id);
     }
   
     @Post(':menuId/categories/:categoryId')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
+    @ApiAuth()
     @RateLimit('MENU', 'addCategory')
     @ApiOperation({ summary: 'Add a category to a menu' })
     @ApiParam({ name: 'menuId', description: 'Menu ID' })
@@ -113,6 +123,8 @@ import {
     @ApiResponse({ status: HttpStatus.OK, description: 'Category added to menu', type: MenuResponseDto })
     @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Menu or category not found' })
     @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid ID format' })
+    @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
+    @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Forbidden - insufficient permissions' })
     async addCategory(
       @Param('menuId') menuId: string,
       @Param('categoryId') categoryId: string,
@@ -121,6 +133,9 @@ import {
     }
   
     @Delete(':menuId/categories/:categoryId')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
+    @ApiAuth()
     @RateLimit('MENU', 'removeCategory')
     @ApiOperation({ summary: 'Remove a category from a menu' })
     @ApiParam({ name: 'menuId', description: 'Menu ID' })
@@ -128,6 +143,8 @@ import {
     @ApiResponse({ status: HttpStatus.OK, description: 'Category removed from menu', type: MenuResponseDto })
     @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Menu not found' })
     @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid ID format' })
+    @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
+    @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Forbidden - insufficient permissions' })
     async removeCategory(
       @Param('menuId') menuId: string,
       @Param('categoryId') categoryId: string,

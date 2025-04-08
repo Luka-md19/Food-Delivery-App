@@ -12,13 +12,15 @@ import {
   ValidationPipe,
   UsePipes,
   ParseIntPipe,
-  DefaultValuePipe
+  DefaultValuePipe,
+  UseGuards
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { RestaurantService } from '../services';
 import { CreateRestaurantDto, UpdateRestaurantDto, RestaurantResponseDto } from '../dto';
-import { ApiController, ApiPaginatedResponse, ApiPaginatioQuery } from '@app/common/swagger';
+import { ApiController, ApiPaginatedResponse, ApiPaginatioQuery, ApiAuth } from '@app/common/swagger';
 import { RateLimit } from '@app/common/rate-limiter';
+import { JwtAuthGuard, RolesGuard, Roles, UserRole } from '@app/common';
 
 @Controller('restaurants')
 @ApiController('restaurants')
@@ -26,7 +28,7 @@ export class RestaurantController {
   constructor(private readonly restaurantService: RestaurantService) {}
 
   @Get()
-  @RateLimit('MENU', 'findAll')
+  @RateLimit('RESTAURANT', 'findAll')
   @ApiOperation({ summary: 'Get all restaurants with pagination' })
   @ApiPaginatioQuery()
   @ApiQuery({ name: 'active', required: false, type: Boolean, description: 'Filter to active restaurants only' })
@@ -46,7 +48,7 @@ export class RestaurantController {
   }
 
   @Get(':id')
-  @RateLimit('MENU', 'findById')
+  @RateLimit('RESTAURANT', 'findById')
   @ApiOperation({ summary: 'Get a restaurant by ID' })
   @ApiParam({ name: 'id', description: 'Restaurant ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Restaurant found', type: RestaurantResponseDto })
@@ -57,34 +59,49 @@ export class RestaurantController {
   }
 
   @Post()
-  @RateLimit('MENU', 'create')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiAuth()
+  @RateLimit('RESTAURANT', 'create')
   @ApiOperation({ summary: 'Create a new restaurant' })
   @ApiResponse({ status: HttpStatus.CREATED, description: 'Restaurant created', type: RestaurantResponseDto })
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input' })
+  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Forbidden - insufficient permissions' })
   @UsePipes(new ValidationPipe({ transform: true }))
   async create(@Body() createRestaurantDto: CreateRestaurantDto): Promise<RestaurantResponseDto> {
     return this.restaurantService.create(createRestaurantDto);
   }
 
   @Put(':id')
-  @RateLimit('MENU', 'update')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiAuth()
+  @RateLimit('RESTAURANT', 'update')
   @ApiOperation({ summary: 'Update a restaurant' })
   @ApiParam({ name: 'id', description: 'Restaurant ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Restaurant updated', type: RestaurantResponseDto })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Restaurant not found' })
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input or ID format' })
+  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Forbidden - insufficient permissions' })
   @UsePipes(new ValidationPipe({ transform: true }))
   async update(@Param('id') id: string, @Body() updateRestaurantDto: UpdateRestaurantDto): Promise<RestaurantResponseDto> {
     return this.restaurantService.update(id, updateRestaurantDto);
   }
 
   @Delete(':id')
-  @RateLimit('MENU', 'delete')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiAuth()
+  @RateLimit('RESTAURANT', 'delete')
   @ApiOperation({ summary: 'Delete a restaurant' })
   @ApiParam({ name: 'id', description: 'Restaurant ID' })
   @ApiResponse({ status: HttpStatus.NO_CONTENT, description: 'Restaurant deleted' })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Restaurant not found' })
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid ID format' })
+  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Forbidden - insufficient permissions' })
   @HttpCode(HttpStatus.NO_CONTENT)
   async delete(@Param('id') id: string): Promise<void> {
     await this.restaurantService.delete(id);

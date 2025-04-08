@@ -79,6 +79,15 @@ export const RATE_LIMIT_CONFIGS = {
     getItems: { ttl: 60, limit: 100 }, // 100 requests per minute
   },
   
+  // Restaurant service endpoints
+  RESTAURANT: {
+    findAll: { ttl: 60, limit: 100 }, // 100 requests per minute (relaxed for read operation)
+    findById: { ttl: 60, limit: 100 }, // 100 requests per minute (relaxed for read operation)
+    create: { ttl: 60, limit: 10 }, // 10 requests per minute (restricted for admin operations)
+    update: { ttl: 60, limit: 10 }, // 10 requests per minute (restricted for admin operations)
+    delete: { ttl: 60, limit: 5 }, // 5 requests per minute (stricter for delete operation)
+  },
+  
   // Default configurations for different types of operations
   DEFAULT: {
     // Different tiers of rate limiting
@@ -154,8 +163,15 @@ export function getRateLimitConfigForPath(path: string, method: string = 'GET'):
     // Menu item options endpoints
     { pattern: /^\/menu-items\/[a-zA-Z0-9-]+\/options$/, method: 'GET', config: RATE_LIMIT_CONFIGS.MENU.getItemOptions },
     { pattern: /^\/menu-items\/[a-zA-Z0-9-]+\/options$/, method: 'POST', config: RATE_LIMIT_CONFIGS.MENU.addItemOption },
-    { pattern: /^\/menu-items\/[a-zA-Z0-9-]+\/options\/\d+$/, method: 'PUT', config: RATE_LIMIT_CONFIGS.MENU.updateItemOption },
-    { pattern: /^\/menu-items\/[a-zA-Z0-9-]+\/options\/\d+$/, method: 'DELETE', config: RATE_LIMIT_CONFIGS.MENU.removeItemOption },
+    { pattern: /^\/menu-items\/[a-zA-Z0-9-]+\/options\/[a-zA-Z0-9-]+$/, method: 'PUT', config: RATE_LIMIT_CONFIGS.MENU.updateItemOption },
+    { pattern: /^\/menu-items\/[a-zA-Z0-9-]+\/options\/[a-zA-Z0-9-]+$/, method: 'DELETE', config: RATE_LIMIT_CONFIGS.MENU.removeItemOption },
+    
+    // Restaurant endpoints
+    { pattern: /^\/restaurants$/, method: 'GET', config: RATE_LIMIT_CONFIGS.RESTAURANT.findAll },
+    { pattern: /^\/restaurants\/[a-zA-Z0-9-]+$/, method: 'GET', config: RATE_LIMIT_CONFIGS.RESTAURANT.findById },
+    { pattern: /^\/restaurants$/, method: 'POST', config: RATE_LIMIT_CONFIGS.RESTAURANT.create },
+    { pattern: /^\/restaurants\/[a-zA-Z0-9-]+$/, method: 'PUT', config: RATE_LIMIT_CONFIGS.RESTAURANT.update },
+    { pattern: /^\/restaurants\/[a-zA-Z0-9-]+$/, method: 'DELETE', config: RATE_LIMIT_CONFIGS.RESTAURANT.delete },
   ];
   
   // Find the first matching pattern with matching method
