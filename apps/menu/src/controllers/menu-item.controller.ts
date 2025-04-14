@@ -27,7 +27,11 @@ import {
   MenuItemResponseDto, 
   CreateOptionTypeDto, 
   UpdateOptionTypeDto,
-  OptionTypeDto
+  OptionTypeDto,
+  SearchMenuItemDto,
+  PriceRangeDto,
+  SortField,
+  SortOrder
 } from '../dto';
 
 @Controller('menu-items')
@@ -61,6 +65,42 @@ export class MenuItemController {
     
     // Otherwise, get all items with pagination
     return this.menuItemService.findAll(page, limit, { available });
+  }
+
+  @Get('search')
+  @RateLimit('MENU', 'searchItems')
+  @ApiOperation({ summary: 'Search menu items with advanced filtering' })
+  @ApiQuery({ name: 'query', required: false, type: String, description: 'Text search query' })
+  @ApiQuery({ name: 'categoryId', required: false, type: String, description: 'Filter by category ID' })
+  @ApiQuery({ name: 'tags', required: false, type: [String], isArray: true, description: 'Filter by tags' })
+  @ApiQuery({ name: 'dietary', required: false, type: [String], isArray: true, description: 'Filter by dietary restrictions' })
+  @ApiQuery({ name: 'available', required: false, type: Boolean, description: 'Filter by availability' })
+  @ApiQuery({ name: 'featured', required: false, type: Boolean, description: 'Filter by featured status' })
+  @ApiQuery({ name: 'min_price', required: false, type: Number, description: 'Minimum price' })
+  @ApiQuery({ name: 'max_price', required: false, type: Number, description: 'Maximum price' })
+  @ApiQuery({ name: 'sortBy', required: false, enum: SortField, description: 'Field to sort by' })
+  @ApiQuery({ name: 'sortOrder', required: false, enum: SortOrder, description: 'Sort order (asc or desc)' })
+  @ApiPaginatioQuery()
+  @ApiPaginatedResponse(MenuItemResponseDto, 'Successfully retrieved search results')
+  async search(
+    @Query() searchParams: SearchMenuItemDto,
+    @Query('min_price', new DefaultValuePipe(undefined), new ParseIntPipe({ optional: true })) minPrice?: number,
+    @Query('max_price', new DefaultValuePipe(undefined), new ParseIntPipe({ optional: true })) maxPrice?: number,
+  ): Promise<{
+    items: MenuItemResponseDto[];
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  }> {
+    // Add price range if min or max price is provided
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      searchParams.priceRange = searchParams.priceRange || { };
+      if (minPrice !== undefined) searchParams.priceRange.min = minPrice;
+      if (maxPrice !== undefined) searchParams.priceRange.max = maxPrice;
+    }
+    
+    return this.menuItemService.search(searchParams);
   }
 
   @Get(':id')
