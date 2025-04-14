@@ -3,7 +3,8 @@ import { MenuController, CategoryController, MenuItemController, RestaurantContr
 import { AdminController } from './controllers/admin.controller';
 import { MenuService, CategoryService, MenuItemService, RestaurantService, AdminService } from './services';
 import { MongoDBModule } from '@app/common/database/mongodb';
-import { ConfigModule, HealthModule } from '@app/common';
+import { ConfigModule, HealthModule, RedisModule, LoggerModule, MessagingModule, ErrorsModule } from '@app/common';
+import { LoggerFactory, LogLevel, LogFormat, LogTransport } from '@app/common';
 import { MenuRepository } from './repositories/menu/menu.repository';
 import { CategoryRepository } from './repositories/category/category.repository';
 import { CqrsModule, EventBus } from '@nestjs/cqrs';
@@ -15,7 +16,7 @@ import { MenuAvailabilityService } from './domain/services/menu-availability.ser
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { EventHandlers } from './events/handlers';
 import { EventPublisher } from './events/publishers/event-publisher';
-import { AppConfigService } from '@app/common';
+import { AppConfigService, ValidatorService, ErrorHandlerService, MongoDBService } from '@app/common';
 import { ThrottlerModule, ThrottlerStorageType } from '@app/common/rate-limiter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -25,15 +26,13 @@ import { Category, CategorySchema } from './schemas/category';
 import { MenuItem, MenuItemSchema } from './schemas/menu-item';
 import { Restaurant, RestaurantSchema } from './schemas/restaurant';
 import { FailedMessageRepository } from './repositories/common/failed-message.repository';
-import { MessageRetryService } from './events/services';
-import { FileStorageService } from './events/services/file-storage/file-storage.service';
 import { MenuHealthController } from './health/menu-health.controller';
-import { MessagingModule } from '@app/common/messaging';
-import { MongoDBService } from '@app/common/database/mongodb/mongodb.service';
-import { LoggerModule, LogLevel, LogFormat, LogTransport } from '@app/common/logger';
-import { ErrorsModule } from '@app/common/exceptions';
-import { ErrorHandlerService, ValidatorService } from '@app/common/exceptions';
-import * as mongoose from 'mongoose';
+import { FileStorageService, MessageRetryService } from './events/services';
+import { ServiceAuthModule, ServiceJwtStrategy, ServiceTokenInterceptor } from '@app/common';
+import { JwtModule } from '@app/common/Jwt';
+import { TokenBlacklistService } from '@app/common/redis/token-blacklist.service';
+import { PassportModule } from '@nestjs/passport';
+import { JwtStrategy } from './strategies/jwt.strategy';
 
 // Define a factory to create domain repositories
 const domainRepositoryProviders = [
@@ -84,11 +83,15 @@ const infrastructureRepositoryProviders = [
       logDir: 'logs/menu',
     }),
     MongoDBModule.forRoot('menu'),
+    RedisModule,
     MessagingModule,
     CqrsModule,
+    JwtModule,
+    PassportModule.register({ defaultStrategy: 'jwt' }),
     ScheduleModule.forRoot(),
     HealthModule.register({ serviceName: 'menu-service' }),
     ErrorsModule,
+    ServiceAuthModule.register(),
     MongooseModule.forRootAsync({
       inject: [AppConfigService],
       useFactory: async (configService: AppConfigService) => {
@@ -249,6 +252,10 @@ const infrastructureRepositoryProviders = [
     // Event handling
     ...EventHandlers,
     EventPublisher,
+    ServiceJwtStrategy,
+    JwtStrategy,
+    TokenBlacklistService,
+    ServiceTokenInterceptor,
   ],
 })
 export class MenuModule {}

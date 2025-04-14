@@ -18,6 +18,7 @@ export const RATE_LIMIT_CONFIGS = {
     register: { ttl: 60, limit: 3 }, // 3 requests per minute
     login: { ttl: 60, limit: 3 }, // 3 requests per minute (reduced from 5)
     refresh: { ttl: 60, limit: 10 }, // 10 requests per minute
+    serviceToken: { ttl: 60, limit: 20 }, // 20 requests per minute for service token generation
     
     // Password management
     forgotPassword: { ttl: 300, limit: 3 }, // 3 requests per 5 minutes
