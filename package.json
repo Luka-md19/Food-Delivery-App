@@ -199,5 +199,10 @@
     "moduleNameMapper": {
       "^@app/common(|/.*)$": "<rootDir>/libs/common/src/$1"
     }
+  },
+  "pnpm": {
+    "overrides": {
+      "html-minifier": "npm:html-minifier-terser@7.2.0"
+    }
   }
 }
