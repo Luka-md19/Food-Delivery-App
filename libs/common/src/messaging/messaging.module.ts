@@ -1,5 +1,7 @@
-import { Module, Global } from '@nestjs/common';
+import { Module, Global, DynamicModule } from '@nestjs/common';
 import { ClientProxyFactory, Transport } from '@nestjs/microservices';
+import { EventPublisher } from './publishers/event-publisher';
+import { EventPublisherOptions } from './publishers/event-publisher.interface';
 
 @Global()
 @Module({
@@ -27,4 +29,22 @@ import { ClientProxyFactory, Transport } from '@nestjs/microservices';
   ],
   exports: ['RABBITMQ_CLIENT'],
 })
-export class MessagingModule {}
+export class MessagingModule {
+  /**
+   * Register the module with EventPublisher
+   * @param options Configuration options for the EventPublisher
+   */
+  static forRoot(options?: EventPublisherOptions): DynamicModule {
+    return {
+      module: MessagingModule,
+      providers: [
+        {
+          provide: 'EVENT_PUBLISHER_OPTIONS',
+          useValue: options || {},
+        },
+        EventPublisher,
+      ],
+      exports: [EventPublisher],
+    };
+  }
+}

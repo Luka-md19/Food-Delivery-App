@@ -24,4 +24,7 @@ declare global {
       };
     }
   }
-} 
+}
+
+// Adding an empty export to make TypeScript treat this as an external module
+export {}; 

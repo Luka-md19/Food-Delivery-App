@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { AppConfigService } from '@app/common/config/config.service';
 import { HttpService } from '@nestjs/axios';
-import { catchError, firstValueFrom, timeout } from 'rxjs';
+import { catchError, firstValueFrom, timeout, throwError } from 'rxjs';
 import { AxiosError, AxiosResponse } from 'axios';
 import { ServiceTokenResponse } from '../interfaces/service-token-response.interface';
 import { v4 as uuidv4 } from 'uuid';
@@ -64,10 +64,13 @@ export class ServiceAuthClient implements OnModuleInit {
    */
   private validateConfiguration(): void {
     // Generate or get a stable service ID
-    this.serviceId = this.configService.get<string>('SERVICE_ID', uuidv4());
+    this.serviceId = this.configService.get<string>('SERVICE_ID', '');
+    if (!this.serviceId) {
+      throw new Error('SERVICE_ID environment variable must be set');
+    }
     
     // Get service name from environment
-    this.serviceName = this.configService.get<string>('SERVICE_NAME');
+    this.serviceName = this.configService.get<string>('SERVICE_NAME', '');
     if (!this.serviceName) {
       throw new Error('SERVICE_NAME environment variable must be set');
     }
@@ -95,10 +98,18 @@ export class ServiceAuthClient implements OnModuleInit {
     this.authServiceUrl = authServiceUrl;
     this.logger.log(`Auth service URL configured as: ${this.authServiceUrl}`);
     
-    // Get API key for service authentication
-    this.apiKey = this.configService.get<string>('SERVICE_API_KEY');
+    // Get API key for service authentication without logging it
+    this.apiKey = this.configService.get<string>('SERVICE_API_KEY', '');
     if (!this.apiKey) {
       throw new Error('SERVICE_API_KEY environment variable must be set');
+    }
+    
+    // Log configuration summary without sensitive information
+    this.logger.log(`ServiceAuthClient initialized for ${this.serviceName} (${this.serviceId})`);
+    if (this.servicePermissions.length > 0) {
+      this.logger.log(`Permissions: ${this.servicePermissions.join(', ')}`);
+    } else {
+      this.logger.warn('No permissions configured for this service');
     }
   }
   
@@ -137,29 +148,40 @@ export class ServiceAuthClient implements OnModuleInit {
     
     try {
       this.logger.log(`Obtaining service token for ${this.serviceName}...`);
-      this.logger.log(`Sending request to: ${this.authServiceUrl}/auth/service-token`);
+      this.logger.log(`Sending request to: ${this.authServiceUrl}/api/auth/service/token`);
+      
+      // Get the service API key from environment without logging it
+      const apiKey = this.configService.get<string>('SERVICE_API_KEY', '');
+      if (!apiKey) {
+        throw new Error('SERVICE_API_KEY environment variable is not set');
+      }
       
       const response: AxiosResponse<ServiceTokenResponse> = await firstValueFrom(
         this.httpService.post<ServiceTokenResponse>(
-          `${this.authServiceUrl}/auth/service-token`,
+          `${this.authServiceUrl}/api/auth/service/token`,
           {
             serviceId: this.serviceId,
             serviceName: this.serviceName,
             permissions: this.servicePermissions,
-            apiKey: this.apiKey,
+            apiKey,
           },
           {
             headers: {
               'Content-Type': 'application/json',
             },
-          }
+            timeout: 10000,
+          },
         ).pipe(
-          timeout(10000), // 10 second timeout
           catchError((error: AxiosError) => {
-            this.logger.error(`Failed to obtain service token: ${error.message}`, error.stack);
-            throw error;
-          })
-        )
+            // Log error without including sensitive data
+            const status = error.response?.status;
+            const method = error.config?.method?.toUpperCase() || 'UNKNOWN';
+            const url = error.config?.url || 'unknown-url';
+            
+            this.logger.error(`[${method} ${url}] Failed with status ${status}: ${error.message}`);
+            return throwError(() => error);
+          }),
+        ),
       );
       
       const { data } = response;

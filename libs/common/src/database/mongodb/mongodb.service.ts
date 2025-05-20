@@ -39,6 +39,20 @@ export class MongoDBService implements OnModuleInit, OnModuleDestroy {
     await this.close();
   }
 
+  /**
+   * Masks sensitive information in a connection string
+   * @param uri MongoDB connection string
+   * @returns Masked connection string with credentials hidden
+   */
+  private maskConnectionString(uri: string): string {
+    if (!uri) return '[undefined]';
+    try {
+      return uri.replace(/mongodb(\+srv)?:\/\/([^:]+):([^@]+)@/g, 'mongodb$1://[username]:[password]@');
+    } catch {
+      return '[invalid-uri-format]';
+    }
+  }
+
   private async connect(): Promise<void> {
     let retryCount = 0;
     const maxRetries = 5;
@@ -48,15 +62,30 @@ export class MongoDBService implements OnModuleInit, OnModuleDestroy {
       try {
         this.logger.log('Attempting to connect to MongoDB...');
         
-        // Log environment variables for debugging
-        this.logger.log(`MONGODB_URI: ${process.env.MONGODB_URI}`);
-        this.logger.log(`MONGODB_DATABASE: ${process.env.MONGODB_DATABASE}`);
+        // Get MongoDB configuration but don't log sensitive details
+        const config = this.configService.get<MongoDBConfig>('mongodb');
+        if (!config || !config.uri) {
+          throw new Error('MongoDB configuration is missing or invalid');
+        }
+
+        // Check if we have a masked URI and restore the original if needed
+        if (config.uri.includes('[MASKED-MONGODB_URI]') && (global as any)._originalEnvVars?.MONGODB_URI) {
+          config.uri = (global as any)._originalEnvVars.MONGODB_URI;
+          this.logger.log('Restored original MongoDB URI from backup');
+        }
+
+        // Log non-sensitive config details only
+        this.logger.log(`MONGODB_DATABASE: ${config.database || process.env.MONGODB_DATABASE}`);
         this.logger.log(`USE_DOCKER: ${process.env.USE_DOCKER}`);
         this.logger.log(`NODE_ENV: ${process.env.NODE_ENV}`);
         this.logger.log(`MONGODB_SSL_ENABLED: ${process.env.MONGODB_SSL_ENABLED}`);
         
-        const config = this.configService.get<MongoDBConfig>('mongodb');
-        this.logger.log(`MongoDB config: ${JSON.stringify(config)}`);
+        // Log config without sensitive data
+        const safeConfig = {
+          ...config,
+          uri: this.maskConnectionString(config.uri)
+        };
+        this.logger.debug(`MongoDB config: ${JSON.stringify(safeConfig)}`);
         
         // Determine if we're running in Docker
         const isDocker = process.env.USE_DOCKER === 'true';
@@ -83,7 +112,8 @@ export class MongoDBService implements OnModuleInit, OnModuleDestroy {
           // For Atlas, increase timeouts since network connectivity might be slower
           connectionOptions.connectTimeoutMS = parseInt(process.env.MONGODB_CONNECT_TIMEOUT || '30000', 10);
           connectionOptions.socketTimeoutMS = parseInt(process.env.MONGODB_SOCKET_TIMEOUT || '60000', 10);
-          connectionOptions.serverSelectionTimeoutMS = 60000; // 60 seconds
+          connectionOptions.serverSelectionTimeoutMS = 30000; // 30 seconds
+          connectionOptions.heartbeatFrequencyMS = 10000; // 10 seconds
         } else {
           // For local MongoDB, disable SSL
           this.logger.log('Detected local MongoDB connection - disabling SSL/TLS settings');
@@ -93,9 +123,16 @@ export class MongoDBService implements OnModuleInit, OnModuleDestroy {
           delete connectionOptions.tlsAllowInvalidHostnames;
         }
         
-        this.logger.log(`Connecting to MongoDB: ${config.uri}`);
+        // Log the masked connection string, not the real one
+        this.logger.log(`Connecting to MongoDB: ${this.maskConnectionString(config.uri)}`);
         this.logger.log(`Database name: ${config.database}`);
-        this.logger.log(`Connection options: ${JSON.stringify(connectionOptions)}`);
+        
+        // Log connection options without any potential sensitive information
+        const safeOptions = { ...connectionOptions };
+        delete safeOptions.pass;
+        delete safeOptions.password;
+        delete safeOptions.auth;
+        this.logger.log(`Connection options: ${JSON.stringify(safeOptions)}`);
         
         // Use the IP-agnostic URI format for Atlas to bypass IP whitelist issues
         let uri = config.uri;
@@ -124,12 +161,14 @@ export class MongoDBService implements OnModuleInit, OnModuleDestroy {
         break; // Exit the retry loop on success
       } catch (error) {
         retryCount++;
-        this.logger.error(`Failed to connect to MongoDB (attempt ${retryCount}/${maxRetries}): ${error.message}`);
+        // Mask any sensitive information that might be in the error message
+        const safeErrorMessage = error.message?.replace(/mongodb(\+srv)?:\/\/([^:]+):([^@]+)@/g, 'mongodb$1://[username]:[password]@') || 'Unknown error';
+        this.logger.error(`Failed to connect to MongoDB (attempt ${retryCount}/${maxRetries}): ${safeErrorMessage}`);
         
-        if (error.message.includes('IP address is not whitelisted') || 
-            error.message.includes('whitelist') || 
-            error.message.includes('ENOTFOUND') ||
-            error.message.includes('Authentication failed')) {
+        if (error.message?.includes('IP address is not whitelisted') || 
+            error.message?.includes('whitelist') || 
+            error.message?.includes('ENOTFOUND') ||
+            error.message?.includes('Authentication failed')) {
           this.logger.warn(`IP whitelist or authentication error detected. Make sure to whitelist the Docker container IP or use an Atlas connection string without IP whitelist restrictions.`);
           
           // If in Docker, provide additional guidance
@@ -144,7 +183,7 @@ export class MongoDBService implements OnModuleInit, OnModuleDestroy {
           await new Promise(resolve => setTimeout(resolve, retryDelay));
         } else {
           this.logger.error(`Maximum retry attempts (${maxRetries}) reached. Could not connect to MongoDB.`);
-          throw new Error(`Could not connect to MongoDB after ${maxRetries} attempts: ${error.message}`);
+          throw new Error(`Could not connect to MongoDB after ${maxRetries} attempts: ${safeErrorMessage}`);
         }
       }
     }
@@ -159,22 +198,64 @@ export class MongoDBService implements OnModuleInit, OnModuleDestroy {
   }
 
   async getDb(): Promise<any> {
-    if (!this.isConnected) {
-      this.logger.log('Database not connected yet, waiting for connection...');
-      await this.connectionPromise;
+    try {
+      if (!this.isConnected) {
+        this.logger.log('Database not connected yet, waiting for connection...');
+        
+        try {
+          await this.connectionPromise;
+        } catch (error) {
+          throw error;
+        }
+      }
+      
+      if (!mongoose.connection || !mongoose.connection.db) {
+        this.logger.error('MongoDB database is not initialized');
+        throw new Error('MongoDB database is not initialized');
+      }
+      
+      return mongoose.connection.db;
+    } catch (error) {
+      throw error;
     }
-    
-    if (!mongoose.connection || !mongoose.connection.db) {
-      this.logger.error('MongoDB database is not initialized');
-      throw new Error('MongoDB database is not initialized');
+  }
+
+  /**
+   * A lightweight health check method that doesn't cause high CPU usage
+   * @returns A boolean indicating if the connection is healthy
+   */
+  async healthCheck(): Promise<boolean> {
+    try {
+      if (!this.isConnected || !mongoose.connection || mongoose.connection.readyState !== 1) {
+        return false;
+      }
+      
+      // Use connection status check instead of a database operation
+      // This is more efficient than running a command
+      return mongoose.connection.readyState === 1;
+    } catch (error) {
+      this.logger.error(`Health check failed: ${error.message}`, error.stack);
+      return false;
     }
-    
-    return mongoose.connection.db;
   }
 
   async getCollection(name: string): Promise<Collection> {
-    const db = await this.getDb();
-    return db.collection(name);
+    try {
+      if (!this.isConnected) {
+        this.logger.log('Not connected yet, waiting for connection...');
+      }
+      
+      const db = await this.getDb();
+      
+      try {
+        const collection = db.collection(name);
+        return collection;
+      } catch (error) {
+        throw error;
+      }
+    } catch (error) {
+      throw error;
+    }
   }
 
   // Adds transaction support for safe operations with commit and rollback.
@@ -192,7 +273,9 @@ export class MongoDBService implements OnModuleInit, OnModuleDestroy {
       return result;
     } catch (error) {
       await session.abortTransaction();
-      this.logger.error(`Transaction failed: ${error.message}`, error.stack);
+      // Ensure no sensitive data in error logs
+      const safeErrorMessage = error.message?.replace(/mongodb(\+srv)?:\/\/([^:]+):([^@]+)@/g, 'mongodb$1://[username]:[password]@') || 'Unknown error';
+      this.logger.error(`Transaction failed: ${safeErrorMessage}`, error.stack);
       throw error;
     } finally {
       await session.endSession();

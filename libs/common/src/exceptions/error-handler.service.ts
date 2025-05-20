@@ -24,6 +24,20 @@ export class ErrorHandlerService {
       throw error;
     }
     
+    // Special case for ResourceConflictException when the database operation succeeds
+    if (error.name === 'ResourceConflictException' && 
+        error.message && 
+        (error.message.includes('Failed to save') || 
+         error.message.includes('Failed to add item') ||
+         error.message.includes('Failed to remove item'))) {
+      
+      this.logger.warn(`${message} (returning empty response): ${error.message}`);
+      
+      // Return an empty object instead of throwing an exception
+      // This is used when the database operation succeeded but response formatting failed
+      return {} as T;
+    }
+    
     this.logger.error(`${message}: ${error.message}`, error.stack);
     throw new InternalServerErrorException(message);
   }

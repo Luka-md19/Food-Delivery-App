@@ -3,6 +3,7 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { REDIS_CLIENT } from './redis.constants';
 import { TokenBlacklistService } from './token-blacklist.service';
+import { CacheService } from './cache.service';
 import Redis from 'ioredis';
 
 @Global()
@@ -24,7 +25,8 @@ import Redis from 'ioredis';
       inject: [ConfigService],
     },
     TokenBlacklistService,
+    CacheService,
   ],
-  exports: [REDIS_CLIENT, TokenBlacklistService],
+  exports: [REDIS_CLIENT, TokenBlacklistService, CacheService],
 })
 export class RedisModule {}
