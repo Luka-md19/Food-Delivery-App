@@ -37,3 +37,7 @@ secrets/
 # Scripts
 *.sh
 *.load-test.js
+
+# Large load test result files
+**/test/load-test/results/*.json
+**/load-test/results/*.json
