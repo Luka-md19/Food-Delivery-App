@@ -1,0 +1,15 @@
+export enum AuditAction {
+  REGISTER = 'register',
+  LOGIN = 'login',
+  LOGOUT = 'logout',
+  TOKEN_REFRESH = 'token_refresh',
+  PASSWORD_RESET_REQUEST = 'password_reset_request',
+  PASSWORD_RESET = 'password_reset',
+  PASSWORD_CHANGE = 'password_change',
+  EMAIL_VERIFICATION = 'email_verification',
+  PROFILE_UPDATE = 'profile_update',
+  ACCOUNT_LOCK = 'account_lock',
+  ACCOUNT_UNLOCK = 'account_unlock',
+  ACCOUNT_DELETE = 'account_delete',
+  ROLE_CHANGE = 'role_change',
+} 
