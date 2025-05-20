@@ -89,7 +89,7 @@ export class MenuItem extends AggregateRoot {
 
     // If this is a new menu item (no ID yet), apply creation event
     if (!props.id) {
-      this.apply(new MenuItemCreatedEvent(this));
+    this.apply(new MenuItemCreatedEvent(this));
     }
   }
 

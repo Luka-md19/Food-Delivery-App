@@ -1,5 +1,5 @@
 import { MenuHandlers } from './menu';
-import { MenuItemHandlers } from './menu-Item';
+import { MenuItemHandlers } from './menu-item';
 import { CategoryHandlers } from './category';
 
 export const EventHandlers = [
@@ -9,5 +9,5 @@ export const EventHandlers = [
 ];
 
 export * from './menu';
-export * from './menu-Item';
+export * from './menu-item';
 export * from './category'; 

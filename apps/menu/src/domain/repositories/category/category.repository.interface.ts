@@ -49,4 +49,20 @@ export interface ICategoryDomainRepository {
    * @returns Promise resolving to a boolean indicating success
    */
   delete(id: string): Promise<boolean>;
+  
+  /**
+   * Add an item to a category
+   * @param categoryId Category ID
+   * @param itemId Item ID
+   * @returns Promise resolving to the updated Category entity
+   */
+  addItem(categoryId: string, itemId: string): Promise<Category>;
+  
+  /**
+   * Remove an item from a category
+   * @param categoryId Category ID
+   * @param itemId Item ID
+   * @returns Promise resolving to the updated Category entity
+   */
+  removeItem(categoryId: string, itemId: string): Promise<Category>;
 }

@@ -2,6 +2,7 @@ import { AggregateRoot } from '@nestjs/cqrs';
 import { CategoryCreatedEvent } from '../events/category/category-created.event';
 import { CategoryItemAddedEvent } from '../events/category/category-item-added.event';
 import { CategoryItemRemovedEvent } from '../events/category/category-item-removed.event';
+import { CategoryDeletedEvent } from '../events/category/category-deleted.event';
 
 export interface CategoryProps {
   id: string;
@@ -51,7 +52,19 @@ export class Category extends AggregateRoot {
 
   // Factory method to create a new category
   public static create(props: CategoryProps): Category {
-    return new Category(props);
+    if (!props.menuId) {
+      throw new Error('Menu ID is required for category');
+    }
+    
+    if (!props.name) {
+      throw new Error('Name is required for category');
+    }
+    
+    const category = new Category(props);
+    
+    // Additional validation or business logic can be added here
+    
+    return category;
   }
 
   // Getters
@@ -177,8 +190,44 @@ export class Category extends AggregateRoot {
     this.apply(new CategoryItemRemovedEvent(this.id, itemId));
   }
 
+  /**
+   * Delete this category
+   * This method will apply the CategoryDeletedEvent
+   */
+  public delete(): void {
+    this.apply(new CategoryDeletedEvent(this.id, this._menuId));
+  }
+
+  // Method to convert to persistence format
+  public toPersistence(): any {
+    // Convert the domain entity to a database object
+    const persistenceObject: any = {
+      menuId: this._menuId,
+      name: this._name,
+      description: this._description,
+      image: this._image,
+      displayOrder: this._displayOrder,
+      active: this._active,
+      items: this._items,
+      parentCategoryId: this._parentCategoryId,
+      metadata: this._metadata,
+      // Add other fields as needed
+    };
+    
+    // Only include ID if it exists
+    if (this._id) {
+      persistenceObject._id = this._id;
+    }
+    
+    return persistenceObject;
+  }
+
   // Method to reconstruct a Category entity from persistence
   public static fromPersistence(data: any): Category {
+    if (!data) {
+      throw new Error('Cannot create Category from null or undefined data');
+    }
+
     const category = new Category({
       id: data._id.toString(),
       menuId: data.menuId.toString(),
@@ -205,22 +254,17 @@ export class Category extends AggregateRoot {
     return category;
   }
 
-  // Method to convert to persistence format
-  public toPersistence(): any {
-    return {
-      _id: this._id,
-      menuId: this._menuId,
-      name: this._name,
-      description: this._description,
-      image: this._image,
-      displayOrder: this._displayOrder,
-      active: this._active,
-      items: this._items,
-      parentCategoryId: this._parentCategoryId,
-      metadata: this._metadata,
-      createdAt: this._createdAt,
-      updatedAt: this._updatedAt,
-      version: this._version,
-    };
+  /**
+   * Get all uncommitted events from the aggregate root
+   */
+  getUncommittedEvents(): any[] {
+    return super.getUncommittedEvents();
+  }
+
+  /**
+   * Commit all events in the aggregate root
+   */
+  commit(): void {
+    super.commit();
   }
 }

@@ -1,3 +1,15 @@
+/**
+ * Interface for the availability in persistence layer
+ */
+export interface AvailabilityData {
+  daysOfWeek: number[];
+  startTime?: string;
+  endTime?: string;
+}
+
+/**
+ * Availability value object representing when a menu is available
+ */
 export class Availability {
   private readonly _daysOfWeek: number[];
   private readonly _startTime?: string;
@@ -22,12 +34,20 @@ export class Availability {
     return this._endTime;
   }
 
-  // Check if the menu is available on a specific day
+  /**
+   * Check if the menu is available on a specific day
+   * @param day Day number (0-6, where 0 is Sunday)
+   * @returns true if available on this day
+   */
   public isAvailableOnDay(day: number): boolean {
     return this._daysOfWeek.includes(day);
   }
 
-  // Check if the menu is available at a specific time
+  /**
+   * Check if the menu is available at a specific time
+   * @param time Time string in format HH:MM
+   * @returns true if available at this time
+   */
   public isAvailableAtTime(time: string): boolean {
     if (!this._startTime || !this._endTime) {
       return true; // If no time restrictions, it's available
@@ -36,8 +56,16 @@ export class Availability {
     return time >= this._startTime && time <= this._endTime;
   }
 
-  // Factory method to create from persistence
-  public static fromPersistence(data: any): Availability {
+  /**
+   * Factory method to create from persistence data
+   * @param data Availability data from persistence layer
+   * @returns New Availability value object
+   */
+  public static fromPersistence(data: AvailabilityData | undefined): Availability {
+    if (!data) {
+      return new Availability([]);
+    }
+    
     return new Availability(
       data.daysOfWeek || [],
       data.startTime,
@@ -45,8 +73,11 @@ export class Availability {
     );
   }
 
-  // Convert to persistence format
-  public toPersistence(): any {
+  /**
+   * Convert to persistence format
+   * @returns Data object for persistence
+   */
+  public toPersistence(): AvailabilityData {
     return {
       daysOfWeek: this._daysOfWeek,
       startTime: this._startTime,
@@ -54,16 +85,30 @@ export class Availability {
     };
   }
 
-  // Value objects should be immutable, so we need methods to create new instances
+  /**
+   * Create a new Availability with updated days of week
+   * @param daysOfWeek New days of week array
+   * @returns New Availability instance
+   */
   public withDaysOfWeek(daysOfWeek: number[]): Availability {
     return new Availability(daysOfWeek, this._startTime, this._endTime);
   }
 
+  /**
+   * Create a new Availability with updated time range
+   * @param startTime New start time
+   * @param endTime New end time
+   * @returns New Availability instance
+   */
   public withTimeRange(startTime?: string, endTime?: string): Availability {
     return new Availability(this._daysOfWeek, startTime, endTime);
   }
 
-  // Value objects should implement equals method
+  /**
+   * Check equality with another Availability instance
+   * @param other Another Availability to compare with
+   * @returns true if objects are equal
+   */
   public equals(other: Availability): boolean {
     if (!(other instanceof Availability)) {
       return false;

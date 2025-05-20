@@ -1,21 +1,25 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ClientProxy } from '@nestjs/microservices';
-import { IFailedMessageRepository } from '../../repositories/common/failed-message.repository.interface';
-import { FailedMessage, FailedMessageDocument } from '../../schemas/common/failed-message.schema';
-import { FileStorageService } from './file-storage.service';
+import { IFailedMessageRepository, FailedMessageDocument } from '../../../repositories/common/failed-message.repository.interface';
+import { FailedMessage } from '../../../schemas/common';
+import { IFileStorageService } from '../file-storage/file-storage.interface';
+import { LoggerFactory, IEventPublisher } from '@app/common';
+import { IMessageRetryService } from './message-retry.interface';
+import { MongoDBService } from '@app/common/database/mongodb';
 
 @Injectable()
-export class MessageRetryService {
-  private readonly logger = new Logger(MessageRetryService.name);
+export class MessageRetryService implements IMessageRetryService {
+  private readonly logger = LoggerFactory.getLogger(MessageRetryService.name);
   private readonly maxRetries = 5;
   private readonly batchSize = 50;
   private isProcessing = false;
 
   constructor(
     @Inject('IFailedMessageRepository') private readonly failedMessageRepository: IFailedMessageRepository,
-    @Inject('RABBITMQ_CLIENT') private readonly client: ClientProxy,
-    private readonly fileStorageService: FileStorageService
+    private readonly eventPublisher: IEventPublisher,
+    @Inject('IFileStorageService') private readonly fileStorageService: IFileStorageService,
+    private readonly mongoDBService: MongoDBService
   ) {}
 
   /**
@@ -95,7 +99,7 @@ export class MessageRetryService {
    * Retry a single failed message from the database
    * @param message The failed message to retry
    */
-  private async retryDatabaseMessage(message: FailedMessage & { _id?: string }): Promise<void> {
+  private async retryDatabaseMessage(message: FailedMessageDocument): Promise<void> {
     try {
       const messageId = (message as any)._id?.toString() || '';
       this.logger.log(`Retrying database message ${messageId} for pattern ${message.pattern}, attempt ${message.retryCount + 1}`);
@@ -107,8 +111,8 @@ export class MessageRetryService {
         return;
       }
       
-      // Attempt to publish the message
-      await this.client.emit(message.pattern, message.payload).toPromise();
+      // Attempt to publish the message using the EventPublisher
+      await this.eventPublisher.publish(message.pattern, message.payload);
       
       // If successful, mark as processed
       this.logger.log(`Successfully republished database message ${messageId}`);
@@ -137,8 +141,8 @@ export class MessageRetryService {
         return;
       }
       
-      // Attempt to publish the message
-      await this.client.emit(message.pattern, message.payload).toPromise();
+      // Attempt to publish the message using the EventPublisher
+      await this.eventPublisher.publish(message.pattern, message.payload);
       
       // If successful, mark as processed
       this.logger.log(`Successfully republished file message ${message.id}`);
@@ -193,6 +197,119 @@ export class MessageRetryService {
       }
     } catch (error) {
       this.logger.error(`Error in cleanup job: ${error.message}`, error.stack);
+    }
+  }
+
+  /**
+   * Retry a specific failed message by ID
+   * This can be used for manual retry via API endpoints
+   * @param id The message ID
+   */
+  async retrySpecificMessage(id: string): Promise<boolean> {
+    try {
+      this.logger.log(`Manually retrying message with ID: ${id}`);
+      
+      // Fetch the message from the database
+      const messages = await this.failedMessageRepository.getUnprocessedMessages(1000);
+      const message = messages.find(msg => (msg as any)._id?.toString() === id);
+      
+      if (!message) {
+        this.logger.warn(`Message with ID ${id} not found or already processed`);
+        return false;
+      }
+      
+      // Attempt to republish the message using the EventPublisher
+      try {
+        await this.eventPublisher.publish(message.pattern, message.payload);
+        this.logger.log(`Successfully republished message ${id}`);
+        
+        // Mark as processed if successful
+        await this.failedMessageRepository.markAsProcessed(id);
+        return true;
+      } catch (error) {
+        this.logger.error(`Failed to republish message ${id}: ${error.message}`, error.stack);
+        
+        // Update retry count and error
+        await this.failedMessageRepository.updateRetryCount(id, error.message);
+        return false;
+      }
+    } catch (error) {
+      this.logger.error(`Error retrying specific message: ${error.message}`, error.stack);
+      return false;
+    }
+  }
+
+  /**
+   * Migrate data from the old collection (failedMessages) to the new one (failed_messages)
+   * This is needed because of a collection naming inconsistency
+   */
+  @Cron(CronExpression.EVERY_30_MINUTES)
+  async migrateCollections() {
+    try {
+      this.logger.log('Checking for data migration from old failed messages collection');
+      
+      // Get database access directly from the MongoDBService
+      const db = await this.mongoDBService.getDb();
+      if (!db) {
+        this.logger.warn('Could not access database for migration check');
+        return;
+      }
+      
+      // Check if old collection exists
+      const collections = await db.listCollections().toArray();
+      const oldCollectionExists = collections.some(c => c.name === 'failedMessages');
+      
+      if (!oldCollectionExists) {
+        this.logger.debug('Old failedMessages collection does not exist, no migration needed');
+        return;
+      }
+      
+      // Get counts from both collections
+      const oldCollection = db.collection('failedMessages');
+      const newCollection = db.collection('failed_messages');
+      
+      const oldCount = await oldCollection.countDocuments();
+      if (oldCount === 0) {
+        this.logger.log('Old collection is empty, no migration needed');
+        return;
+      }
+      
+      this.logger.log(`Found ${oldCount} documents in old failedMessages collection to migrate`);
+      
+      // Migrate in batches
+      const batchSize = 100;
+      let migratedCount = 0;
+      
+      let batch = await oldCollection.find().limit(batchSize).toArray();
+      while (batch.length > 0) {
+        // Insert batch into new collection
+        if (batch.length > 0) {
+          await newCollection.insertMany(batch, { ordered: false });
+          migratedCount += batch.length;
+          
+          // Get IDs to delete from old collection
+          const ids = batch.map(doc => doc._id);
+          await oldCollection.deleteMany({ _id: { $in: ids } });
+        }
+        
+        this.logger.log(`Migrated ${migratedCount} documents so far`);
+        
+        // Get next batch
+        batch = await oldCollection.find().limit(batchSize).toArray();
+      }
+      
+      // Check if old collection is now empty
+      const remainingCount = await oldCollection.countDocuments();
+      if (remainingCount === 0) {
+        this.logger.log('Successfully migrated all documents, dropping old collection');
+        await oldCollection.drop();
+      } else {
+        this.logger.warn(`Migration completed but ${remainingCount} documents still remain in old collection`);
+      }
+      
+      this.logger.log('Data migration completed successfully');
+    } catch (error) {
+      this.logger.error(`Error during failed messages collection migration: ${error.message}`, error.stack);
     }
   }
 } 

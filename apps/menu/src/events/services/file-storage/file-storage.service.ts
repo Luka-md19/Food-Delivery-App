@@ -1,15 +1,17 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { promisify } from 'util';
+import { LoggerFactory } from '@app/common/logger';
+import { IFileStorageService } from './file-storage.interface';
 
 /**
  * Service for storing failed messages in the file system as a fallback
  * when the database is unavailable
  */
 @Injectable()
-export class FileStorageService {
-  private readonly logger = new Logger(FileStorageService.name);
+export class FileStorageService implements IFileStorageService {
+  private readonly logger = LoggerFactory.getLogger(FileStorageService.name);
   private readonly writeFileAsync = promisify(fs.writeFile);
   private readonly readFileAsync = promisify(fs.readFile);
   private readonly mkdirAsync = promisify(fs.mkdir);

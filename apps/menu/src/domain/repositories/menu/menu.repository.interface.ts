@@ -44,9 +44,24 @@ export interface IMenuDomainRepository {
   save(menu: Menu): Promise<Menu>;
   
   /**
+   * Add a category to a menu
+   * @param menuId Menu ID
+   * @param categoryId Category ID
+   * @returns Promise resolving to the updated Menu entity or null if failed
+   */
+  addCategory(menuId: string, categoryId: string): Promise<Menu | null>;
+  
+  /**
    * Delete a menu
    * @param id Menu ID
    * @returns Promise resolving to a boolean indicating success
    */
   delete(id: string): Promise<boolean>;
+  
+  /**
+   * Find menus containing a specific category
+   * @param categoryId Category ID
+   * @returns Promise resolving to an array of Menu entities
+   */
+  findMenuByCategoryId(categoryId: string): Promise<Menu[]>;
 } 

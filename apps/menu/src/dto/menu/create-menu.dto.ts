@@ -4,26 +4,47 @@ import { Type } from 'class-transformer';
 import { AvailabilityDto } from '../common/availability.dto';
 
 export class CreateMenuDto {
-  @ApiProperty({ description: 'Restaurant ID', example: '60d21b4667d0d8992e610c85' })
+  @ApiProperty({ 
+    description: 'Restaurant ID', 
+    example: '6437f7f744bd1802c0f55891' 
+  })
   @IsMongoId()
   restaurantId: string;
 
-  @ApiProperty({ description: 'Menu name', example: 'Lunch Menu', type: String })
+  @ApiProperty({ 
+    description: 'Menu name', 
+    example: 'Seasonal Dinner Menu', 
+    type: String 
+  })
   @IsString()
   name: string;
 
-  @ApiPropertyOptional({ description: 'Menu description', example: 'Available weekdays from 11am to 3pm', type: String })
+  @ApiPropertyOptional({ 
+    description: 'Menu description', 
+    example: 'Our chef\'s curated selection of seasonal dishes featuring locally-sourced ingredients. Available daily from 5pm to 10pm.', 
+    type: String 
+  })
   @IsOptional()
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({ description: 'Whether the menu is active', example: true, default: true, type: Boolean })
+  @ApiPropertyOptional({ 
+    description: 'Whether the menu is active', 
+    example: true, 
+    default: true, 
+    type: Boolean 
+  })
   @IsOptional()
   @IsBoolean()
   active?: boolean;
 
   @ApiPropertyOptional({ 
     description: 'Menu availability settings',
+    example: {
+      daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+      startTime: '17:00',
+      endTime: '22:00'
+    },
     type: AvailabilityDto
   })
   @IsOptional()
@@ -31,7 +52,17 @@ export class CreateMenuDto {
   @Type(() => AvailabilityDto)
   availability?: AvailabilityDto;
 
-  @ApiPropertyOptional({ description: 'Custom metadata', type: Object })
+  @ApiPropertyOptional({ 
+    description: 'Custom metadata', 
+    example: {
+      seasonName: "Summer 2023",
+      chefSpecial: true,
+      estimatedDuration: "90 minutes",
+      allergenWarning: "Contains nuts, dairy, and gluten",
+      winePairingAvailable: true
+    },
+    type: Object 
+  })
   @IsOptional()
   metadata?: Record<string, any>;
 } 
