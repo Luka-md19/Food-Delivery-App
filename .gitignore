@@ -1,66 +1,39 @@
-# compiled output
-/dist
-/node_modules
-/build
-
-# Logs
-logs
+# General
+node_modules/
+.vscode/
+dist/
 *.log
-npm-debug.log*
-pnpm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
-
-# OS
-.DS_Store
-
-# Tests
-/coverage
-/.nyc_output
-
-# IDEs and editors
-/.idea
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-workspace
-
-# IDE - VSCode
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-
-# dotenv environment variable files
-.env
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
-!.env.example
-!**/.env.example
-
-# temp directory
-.temp
-.tmp
-
-# Runtime data
-pids
 *.pid
-*.seed
-*.pid.lock
 
-# Diagnostic reports (https://nodejs.org/api/report.html)
-report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+# Env files
+.env
+.env.*
+!.env.example
+!.env.*.example
+apps/*/.env
+apps/*/.env.*
+!apps/*/.env.example
+!apps/*/.env.*.example
 
-# Sensitive information
-/secrets/
-**/.env
-**/.env.*
-!**/.env.example
-**/secrets/
-!**/secrets/*.example.*
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Kubernetes (optional)
+*.yaml
+*.yml
+
+# Secrets
+secrets/
+*.secret
+*.secrets
+*.key
+*.pem
+*.crt
+*.pfx
+*.p12
+
+# Scripts
+*.sh
+*.load-test.js
