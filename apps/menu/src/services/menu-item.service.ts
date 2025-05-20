@@ -12,6 +12,8 @@ import { ErrorHandlerService, ValidatorService } from '@app/common/exceptions';
 import { MenuItem } from '../domain/entities/menu-item.entity';
 import { Logger } from '@nestjs/common';
 import { EventBus } from '@nestjs/cqrs';
+import { v4 as uuidv4 } from 'uuid';
+import { SearchMenuItemDto, SortField, SortOrder } from '../dto/menu-item/search-menu-item.dto';
 
 @Injectable()
 export class MenuItemService {
@@ -26,6 +28,12 @@ export class MenuItemService {
   ) {
     // Initialize ErrorHandlerService with the service name
     this.errorHandler = new ErrorHandlerService(MenuItemService.name);
+  }
+
+  // Generate a unique option ID
+  private generateOptionId(name: string): string {
+    const baseId = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    return `${baseId}-${uuidv4().substring(0, 8)}`;
   }
 
   async findAll(page = 1, limit = 10, filter: Partial<MenuItemSchema> = {}): Promise<{
@@ -379,10 +387,13 @@ export class MenuItemService {
 
   async addOption(id: string, createOptionDto: CreateOptionTypeDto): Promise<MenuItemResponseDto> {
     try {
+      this.logger.debug(`Adding option to menu item with ID: ${id}`);
+      
       try {
         this.validator.validateObjectId(id);
       } catch (error) {
         // Continue even with invalid ID format
+        this.logger.debug(`Invalid ObjectId format for ${id}, but continuing`);
       }
       
       // Verify the item exists
@@ -391,29 +402,47 @@ export class MenuItemService {
         throw new NotFoundException(`Menu item with ID ${id} not found`);
       }
       
+      // Check if an option with the same name already exists
+      const existingOptions = existingItem.options || [];
+      const duplicateName = existingOptions.find(
+        option => option.name === createOptionDto.name
+      );
+      
+      if (duplicateName) {
+        throw new BadRequestException(`Option with name '${createOptionDto.name}' already exists`);
+      }
+      
+      // Generate a unique ID for this option
+      const optionId = this.generateOptionId(createOptionDto.name);
+      
       // Convert DTO to schema type
       const option: OptionType = {
+        id: optionId,
         name: createOptionDto.name,
         description: createOptionDto.description,
-        required: createOptionDto.required,
-        multiple: createOptionDto.multiple,
-        minSelections: createOptionDto.minSelections,
-        maxSelections: createOptionDto.maxSelections,
-        displayOrder: createOptionDto.displayOrder,
+        required: createOptionDto.required !== undefined ? createOptionDto.required : false,
+        multiple: createOptionDto.multiple !== undefined ? createOptionDto.multiple : false,
+        minSelections: createOptionDto.minSelections || 0,
+        maxSelections: createOptionDto.maxSelections || 1,
+        displayOrder: createOptionDto.displayOrder || 0,
         values: createOptionDto.values.map(value => ({
           name: value.name,
-          price: value.price,
+          price: value.price || 0,
           available: value.available !== undefined ? value.available : true,
-          description: value.description,
-          externalId: value.externalId
+          description: value.description || '',
+          externalId: value.externalId || ''
         }))
       };
       
-      // Add the new option
+      this.logger.debug(`Created option object with ID ${optionId}`);
+      
+      // Add the new option using entity method
       const updatedItem = existingItem.addOption(option);
       
-      // Save the updated item
-      const savedItem = await this.menuItemDomainRepository.update(id, updatedItem);
+      this.logger.debug(`Saving updated menu item with new option`);
+      
+      // Save the updated entity directly
+      const savedItem = await this.menuItemDomainRepository.save(updatedItem);
       
       if (!savedItem) {
         throw new Error('Failed to add option to menu item');
@@ -421,11 +450,11 @@ export class MenuItemService {
       
       return this.mapToDto(savedItem);
     } catch (error) {
-      return this.errorHandler.handleError(error, 'Failed to add option to menu item', [NotFoundException]);
+      return this.errorHandler.handleError(error, 'Failed to add option to menu item', [NotFoundException, BadRequestException]);
     }
   }
 
-  async updateOption(id: string, optionIndex: number, updateOptionDto: UpdateOptionTypeDto): Promise<MenuItemResponseDto> {
+  async updateOptionById(id: string, optionId: string, updateOptionDto: UpdateOptionTypeDto): Promise<MenuItemResponseDto> {
     try {
       try {
         this.validator.validateObjectId(id);
@@ -439,34 +468,38 @@ export class MenuItemService {
         throw new NotFoundException(`Menu item with ID ${id} not found`);
       }
       
-      // Verify the option exists
-      if (optionIndex < 0 || !existingItem.options || optionIndex >= existingItem.options.length) {
-        throw new NotFoundException(`Option at index ${optionIndex} not found for menu item with ID ${id}`);
+      // Find the option by ID
+      const existingOptions = existingItem.options || [];
+      const optionIndex = existingOptions.findIndex(option => option.id === optionId);
+      
+      if (optionIndex === -1) {
+        throw new NotFoundException(`Option with ID ${optionId} not found in menu item ${id}`);
       }
       
-      // Convert DTO to schema type
+      // Convert DTO to schema type, preserving the original ID
       const option: OptionType = {
+        id: optionId, // Preserve the existing ID
         name: updateOptionDto.name,
         description: updateOptionDto.description,
-        required: updateOptionDto.required,
-        multiple: updateOptionDto.multiple,
-        minSelections: updateOptionDto.minSelections,
-        maxSelections: updateOptionDto.maxSelections,
-        displayOrder: updateOptionDto.displayOrder,
+        required: updateOptionDto.required !== undefined ? updateOptionDto.required : false,
+        multiple: updateOptionDto.multiple !== undefined ? updateOptionDto.multiple : false,
+        minSelections: updateOptionDto.minSelections || 0,
+        maxSelections: updateOptionDto.maxSelections || 1,
+        displayOrder: updateOptionDto.displayOrder || 0,
         values: updateOptionDto.values.map(value => ({
           name: value.name,
-          price: value.price,
+          price: value.price || 0,
           available: value.available !== undefined ? value.available : true,
-          description: value.description,
-          externalId: value.externalId
+          description: value.description || '',
+          externalId: value.externalId || ''
         }))
       };
       
       // Update the option
       const updatedItem = existingItem.updateOption(optionIndex, option);
       
-      // Save the updated item
-      const savedItem = await this.menuItemDomainRepository.update(id, updatedItem);
+      // Save the updated entity directly
+      const savedItem = await this.menuItemDomainRepository.save(updatedItem);
       
       if (!savedItem) {
         throw new Error('Failed to update menu item option');
@@ -474,11 +507,11 @@ export class MenuItemService {
       
       return this.mapToDto(savedItem);
     } catch (error) {
-      return this.errorHandler.handleError(error, 'Failed to update menu item option', [NotFoundException]);
+      return this.errorHandler.handleError(error, 'Failed to update menu item option', [NotFoundException, BadRequestException]);
     }
   }
 
-  async removeOption(id: string, optionIndex: number): Promise<MenuItemResponseDto> {
+  async removeOptionById(id: string, optionId: string): Promise<MenuItemResponseDto> {
     try {
       try {
         this.validator.validateObjectId(id);
@@ -492,16 +525,19 @@ export class MenuItemService {
         throw new NotFoundException(`Menu item with ID ${id} not found`);
       }
       
-      // Verify the option exists
-      if (optionIndex < 0 || !existingItem.options || optionIndex >= existingItem.options.length) {
-        throw new NotFoundException(`Option at index ${optionIndex} not found for menu item with ID ${id}`);
+      // Find the option by ID
+      const existingOptions = existingItem.options || [];
+      const optionIndex = existingOptions.findIndex(option => option.id === optionId);
+      
+      if (optionIndex === -1) {
+        throw new NotFoundException(`Option with ID ${optionId} not found in menu item ${id}`);
       }
       
       // Remove the option
       const updatedItem = existingItem.removeOption(optionIndex);
       
-      // Save the updated item
-      const savedItem = await this.menuItemDomainRepository.update(id, updatedItem);
+      // Save the updated entity directly
+      const savedItem = await this.menuItemDomainRepository.save(updatedItem);
       
       if (!savedItem) {
         throw new Error('Failed to remove option from menu item');
@@ -509,7 +545,7 @@ export class MenuItemService {
       
       return this.mapToDto(savedItem);
     } catch (error) {
-      return this.errorHandler.handleError(error, 'Failed to remove option from menu item', [NotFoundException]);
+      return this.errorHandler.handleError(error, 'Failed to remove option from menu item', [NotFoundException, BadRequestException]);
     }
   }
 
@@ -551,5 +587,70 @@ export class MenuItemService {
     dto.updatedAt = menuItem.updatedAt;
     
     return dto;
+  }
+
+  /**
+   * Search menu items with advanced filtering and text search
+   * @param searchParams Search parameters
+   * @returns Paginated results
+   */
+  async search(searchParams: SearchMenuItemDto): Promise<{
+    items: MenuItemResponseDto[];
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  }> {
+    try {
+      this.logger.debug(`Searching menu items with params: ${JSON.stringify(searchParams)}`);
+      
+      // Validate pagination
+      const pagination = this.validator.validatePagination(
+        searchParams.page || 1,
+        searchParams.limit || 10
+      );
+      
+      // Convert DTO to repository search parameters
+      const searchQuery = {
+        query: searchParams.query,
+        categoryId: searchParams.categoryId,
+        tags: searchParams.tags,
+        dietary: searchParams.dietary,
+        priceRange: searchParams.priceRange,
+        available: searchParams.available,
+        featured: searchParams.featured,
+        sortBy: searchParams.sortBy as string,
+        sortOrder: searchParams.sortOrder as 'asc' | 'desc',
+        page: pagination.page,
+        limit: pagination.limit
+      };
+      
+      // Execute search
+      const [items, totalCount] = await Promise.all([
+        this.menuItemDomainRepository.search(searchQuery),
+        this.menuItemDomainRepository.countSearch({
+          query: searchParams.query,
+          categoryId: searchParams.categoryId,
+          tags: searchParams.tags,
+          dietary: searchParams.dietary,
+          priceRange: searchParams.priceRange,
+          available: searchParams.available,
+          featured: searchParams.featured
+        })
+      ]);
+      
+      const pages = Math.ceil(totalCount / pagination.limit) || 1;
+      
+      return {
+        items: items.map(item => this.mapToDto(item)),
+        total: totalCount,
+        page: pagination.page,
+        limit: pagination.limit,
+        pages
+      };
+    } catch (error) {
+      this.logger.error(`Error in search method: ${error.message}`);
+      return this.errorHandler.handleError(error, 'Failed to search menu items');
+    }
   }
 } 

@@ -5,6 +5,13 @@ export interface DatabaseConfig {
     username: string;
     password: string;
     database: string;
-    synchronize: boolean;
-    autoLoadEntities: boolean;
-  }
+    sync?: boolean;
+    autoLoadEntities?: boolean;
+    logging?: boolean;
+    poolSize?: number;
+    maxPoolSize?: number;
+    connectionTimeout?: number;
+    idleTimeout?: number;
+    queryTimeout?: number;
+    sslEnabled?: boolean;
+}

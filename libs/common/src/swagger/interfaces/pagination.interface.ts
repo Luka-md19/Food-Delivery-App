@@ -1,4 +1,5 @@
-export interface PaginatedResponse<T>{
+// Renamed to avoid collision with mongodb PaginatedResponse
+export interface SwaggerPaginatedResponse<T>{
   items: T[];
   meta:{
     total : number;

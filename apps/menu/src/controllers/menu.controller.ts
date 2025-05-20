@@ -13,22 +13,28 @@ import {
     UsePipes,
     ParseIntPipe,
     DefaultValuePipe,
-    UseGuards
+    UseGuards,
+    Logger
   } from '@nestjs/common';
   import { ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
   import { MenuService } from '../services';
+  import { CachedMenuService } from '../services/cached-menu.service';
   import { CreateMenuDto, UpdateMenuDto, MenuResponseDto } from '../dto';
   import { ApiController, ApiPaginatedResponse, ApiPaginatioQuery, ApiAuth } from '@app/common/swagger';
-  import { RateLimit } from '@app/common/rate-limiter';
-  import { JwtAuthGuard, RolesGuard, Roles, UserRole } from '@app/common';
+  import { DynamicRateLimit } from '@app/common/rate-limiter';
+  import { JwtAuthGuard, RolesGuard, Roles, UserRole, MicroserviceAuthGuard, ServicePermissions } from '@app/common';
+  import { MessagePattern, Payload, Ctx, RmqContext } from '@nestjs/microservices';
+  import { LoggerFactory } from '@app/common/logger';
   
   @Controller('menus')
   @ApiController('menus')
   export class MenuController {
-    constructor(private readonly menuService: MenuService) {}
+    private readonly logger = new Logger(MenuController.name);
+  
+    constructor(private readonly menuService: CachedMenuService) {}
   
     @Get()
-    @RateLimit('MENU', 'findAll')
+    @DynamicRateLimit('MENU', 'findAll')
     @ApiOperation({ summary: 'Get all menus with pagination' })
     @ApiPaginatioQuery()
     @ApiQuery({ name: 'restaurantId', required: false, description: 'Restaurant ID to filter by' })
@@ -53,7 +59,7 @@ import {
     }
   
     @Get(':id')
-    @RateLimit('MENU', 'findById')
+    @DynamicRateLimit('MENU', 'findById')
     @ApiOperation({ summary: 'Get a menu by ID' })
     @ApiParam({ name: 'id', description: 'Menu ID' })
     @ApiResponse({ status: HttpStatus.OK, description: 'Menu found', type: MenuResponseDto })
@@ -67,7 +73,7 @@ import {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
     @ApiAuth()
-    @RateLimit('MENU', 'create')
+    @DynamicRateLimit('MENU', 'create')
     @ApiOperation({ summary: 'Create a new menu' })
     @ApiResponse({ status: HttpStatus.CREATED, description: 'Menu created', type: MenuResponseDto })
     @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input' })
@@ -82,7 +88,7 @@ import {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
     @ApiAuth()
-    @RateLimit('MENU', 'update')
+    @DynamicRateLimit('MENU', 'update')
     @ApiOperation({ summary: 'Update a menu' })
     @ApiParam({ name: 'id', description: 'Menu ID' })
     @ApiResponse({ status: HttpStatus.OK, description: 'Menu updated', type: MenuResponseDto })
@@ -99,7 +105,7 @@ import {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
     @ApiAuth()
-    @RateLimit('MENU', 'delete')
+    @DynamicRateLimit('MENU', 'delete')
     @ApiOperation({ summary: 'Delete a menu' })
     @ApiParam({ name: 'id', description: 'Menu ID' })
     @ApiResponse({ status: HttpStatus.NO_CONTENT, description: 'Menu deleted' })
@@ -116,7 +122,7 @@ import {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
     @ApiAuth()
-    @RateLimit('MENU', 'addCategory')
+    @DynamicRateLimit('MENU', 'addCategory')
     @ApiOperation({ summary: 'Add a category to a menu' })
     @ApiParam({ name: 'menuId', description: 'Menu ID' })
     @ApiParam({ name: 'categoryId', description: 'Category ID' })
@@ -136,7 +142,7 @@ import {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
     @ApiAuth()
-    @RateLimit('MENU', 'removeCategory')
+    @DynamicRateLimit('MENU', 'removeCategory')
     @ApiOperation({ summary: 'Remove a category from a menu' })
     @ApiParam({ name: 'menuId', description: 'Menu ID' })
     @ApiParam({ name: 'categoryId', description: 'Category ID' })
@@ -150,5 +156,30 @@ import {
       @Param('categoryId') categoryId: string,
     ): Promise<MenuResponseDto> {
       return this.menuService.removeCategory(menuId, categoryId);
+    }
+  
+    /**
+     * Internal (microservice) endpoint to get menu details
+     * This endpoint requires service authentication and menu.read permission
+     */
+    @MessagePattern({ cmd: 'get_menu_details' })
+    @UseGuards(MicroserviceAuthGuard)
+    @ServicePermissions('menu.read')
+    async getMenuDetails(@Payload() menuId: string, @Ctx() context: RmqContext): Promise<MenuResponseDto> {
+      try {
+        // Extract metadata about the calling service
+        const originalMsg = context.getMessage();
+        const properties = originalMsg.properties || {};
+        const callingService = properties.serviceName || 'unknown';
+        
+        // Log the request
+        this.logger.debug(`Menu details requested by ${callingService} for menu ${menuId}`);
+        
+        // Delegate to service layer
+        return this.menuService.findById(menuId);
+      } catch (error) {
+        this.logger.error(`Error processing menu details request: ${error.message}`, error.stack);
+        throw error;
+      }
     }
   }

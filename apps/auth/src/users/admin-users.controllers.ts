@@ -6,13 +6,12 @@ import {
   Param, 
   Body, 
   UseGuards, 
-  Logger, 
   NotFoundException 
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { JwtAuthGuard, RolesGuard, Roles, UserRole } from '@app/common';
+import { JwtAuthGuard, RolesGuard, Roles, UserRole, LoggerFactory } from '@app/common';
 import { UpdateUserRolesDto } from '../dto/update-user-roles.dto';
 
 @ApiTags('Admin Users')
@@ -20,7 +19,7 @@ import { UpdateUserRolesDto } from '../dto/update-user-roles.dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN)
 export class AdminUsersController {
-  private readonly logger = new Logger(AdminUsersController.name);
+  private readonly logger = LoggerFactory.getLogger(AdminUsersController.name);
 
   constructor(private readonly usersService: UsersService) {}
 

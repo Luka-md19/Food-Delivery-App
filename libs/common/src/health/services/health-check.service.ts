@@ -7,6 +7,27 @@ import { DataSource } from 'typeorm';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { Redis } from 'ioredis';
 import { LoggerFactory } from '../../logger/logger.factory';
+import * as os from 'os';
+
+/**
+ * ServiceMetrics interface for collecting performance data
+ */
+export interface ServiceMetrics {
+  /** CPU usage percentage */
+  cpuUsage: number;
+  
+  /** Memory usage in MB */
+  memoryUsageMB: number;
+  
+  /** Available memory in MB */
+  availableMemoryMB: number;
+  
+  /** Process uptime in seconds */
+  processUptimeSec: number;
+  
+  /** Active connections */
+  activeConnections?: number;
+}
 
 /**
  * Service for checking the health of various dependencies
@@ -15,6 +36,7 @@ import { LoggerFactory } from '../../logger/logger.factory';
 @Injectable()
 export class HealthCheckService {
   private readonly logger = LoggerFactory.getLogger('HealthCheckService');
+  private startTime: number = Date.now();
 
   constructor(
     private readonly configService: AppConfigService,
@@ -27,10 +49,16 @@ export class HealthCheckService {
   /**
    * Perform a health check on all available dependencies
    * @param serviceName The name of the service
+   * @param instanceId The unique ID of this service instance
+   * @param hostname The hostname of this instance
    * @returns A health check result
    */
-  async check(serviceName: string): Promise<HealthCheckResult> {
-    this.logger.log(`Performing health check for ${serviceName}`);
+  async check(
+    serviceName: string, 
+    instanceId?: string, 
+    hostname?: string
+  ): Promise<HealthCheckResult> {
+    this.logger.log(`Performing health check for ${serviceName}${instanceId ? ` (${instanceId})` : ''}`);
     
     // Initialize dependencies object
     const dependencies: Record<string, 'connected' | 'disconnected'> = {};
@@ -70,18 +98,50 @@ export class HealthCheckService {
       status = 'degraded';
     }
     
+    // Collect performance metrics
+    const metrics = await this.collectMetrics();
+    
     const result: HealthCheckResult = {
       status,
       timestamp: new Date().toISOString(),
       service: serviceName,
+      instanceId: instanceId || 'default',
+      hostname: hostname || os.hostname(),
       version: process.env.npm_package_version || '1.0.0',
       port: parseInt(this.configService.get('PORT', '3000'), 10),
       environment: this.configService.get('NODE_ENV', 'development'),
-      dependencies
+      dependencies,
+      metrics,
     };
     
     this.logger.log(`Health check result: ${JSON.stringify(result)}`);
     return result;
+  }
+
+  /**
+   * Collect performance metrics for this service instance
+   * This is important for horizontal scaling decisions
+   */
+  private async collectMetrics(): Promise<ServiceMetrics> {
+    // Calculate uptime
+    const uptime = (Date.now() - this.startTime) / 1000;
+    
+    // Get memory usage
+    const memoryUsage = process.memoryUsage();
+    const memoryUsageMB = Math.round(memoryUsage.rss / (1024 * 1024));
+    const availableMemoryMB = Math.round(os.freemem() / (1024 * 1024));
+    
+    // Get CPU usage (this is approximate without additional libraries)
+    // For more accurate CPU measurements in production, consider using a monitoring solution
+    const cpuUsage = Math.round(process.cpuUsage().user / 1000000); // Convert to seconds
+    
+    return {
+      cpuUsage,
+      memoryUsageMB,
+      availableMemoryMB, 
+      processUptimeSec: uptime,
+      // We could add more metrics here like active connections
+    };
   }
 
   /**
@@ -107,11 +167,16 @@ export class HealthCheckService {
   private async checkMongoDBConnection(): Promise<'connected' | 'disconnected'> {
     try {
       this.logger.log('Checking MongoDB connection');
-      const db = await this.mongoDBService?.getDb();
-      // Perform a simple ping to check if the database is responsive
-      await db?.command({ ping: 1 });
-      this.logger.log('MongoDB connection successful');
-      return 'connected';
+      
+      // Use the lightweight healthCheck method instead of database operations
+      const isHealthy = await this.mongoDBService?.healthCheck();
+      
+      if (isHealthy) {
+        this.logger.log('MongoDB connection successful');
+        return 'connected';
+      } else {
+        throw new Error('MongoDB connection check failed');
+      }
     } catch (error) {
       this.logger.warn(`MongoDB connection failed: ${error.message}`);
       return 'disconnected';

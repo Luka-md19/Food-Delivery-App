@@ -12,7 +12,7 @@ This directory contains service classes that handle the business logic of the ap
 
 Services in this directory follow these patterns:
 
-1. They extend the BaseService from @app/common for common functionality
+1. They use `ErrorHandlerService` and `ValidatorService` from `@app/common/exceptions` for common functionality
 2. They use dependency injection to access repositories and other required services
 3. They handle error cases consistently using try/catch blocks and return statements
 4. They map domain entities to DTOs before sending responses
@@ -26,13 +26,13 @@ All service methods use proper error handling with:
 try {
   // Business logic
 } catch (error) {
-  return this.handleError(error, 'Error message', [KnownErrorType]);
+  return this.errorHandler.handleError(error, 'Error message', [KnownErrorType]);
 }
 ```
 
 ## Validation
 
-Services should validate inputs using inherited methods from BaseService:
+Services should validate inputs using methods from ValidatorService:
 
 - `validateObjectId(id: string)`: Ensures a valid MongoDB ObjectId
 - `validatePagination(page, limit, maxLimit)`: Normalizes pagination parameters

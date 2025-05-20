@@ -1,107 +1,166 @@
-import { Injectable, Logger, UnauthorizedException, ForbiddenException, NotFoundException, InternalServerErrorException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { MoreThan, Repository } from 'typeorm';
+import { Injectable, Inject } from '@nestjs/common';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { User } from '../users/entities/user.entity';
 import { ITokenService } from './interfaces/token-service.interface';
+import { LoggerFactory } from '@app/common';
+import { TokenManagerService } from './services/token-manager.service';
+import { SessionService } from './services/session.service';
+import { TokenCleanupService } from './services/token-cleanup.service';
+import { TokenCleanupResponseDto } from './dto/token-cleanup-response.dto';
+import { ITokenConsumerService } from './interfaces/token-consumer.interface';
+import { TOKEN_CONSUMER_SERVICE } from './token.constants';
 
+/**
+ * Facade service that delegates to specialized token-related services.
+ * This provides a single entry point for token operations while maintaining
+ * separation of concerns.
+ * 
+ * Service Responsibilities:
+ * - TokenManagerService: Core token operations like creation, rotation, and invalidation
+ * - SessionService: User session management and token validation
+ * - TokenCleanupService: Handling expired token cleanup
+ * - TokenConsumerService: Consuming token-related jobs from a queue
+ */
 @Injectable()
 export class TokenService implements ITokenService {
-  private readonly logger = new Logger(TokenService.name);
+  private readonly logger = LoggerFactory.getLogger(TokenService.name);
 
   constructor(
-    @InjectRepository(RefreshToken)
-    private readonly refreshTokenRepository: Repository<RefreshToken>,
+    private readonly tokenManagerService: TokenManagerService,
+    private readonly sessionService: SessionService,
+    private readonly tokenCleanupService: TokenCleanupService,
+    @Inject(TOKEN_CONSUMER_SERVICE) private readonly tokenConsumerService: ITokenConsumerService,
   ) {}
 
-  async createRefreshToken(user: User, token: string): Promise<RefreshToken> {
-    // Set expiration for 7 days (adjust as needed)
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    const refreshToken = this.refreshTokenRepository.create({
-      token,
-      user,
-      expiresAt,
-      isRevoked: false,
-    });
-    return this.refreshTokenRepository.save(refreshToken);
+  /**
+   * Create a refresh token for a user
+   * @delegate TokenManagerService
+   */
+  async createRefreshToken(user: User, deviceInfo: string = '', token?: string): Promise<RefreshToken> {
+    return this.tokenManagerService.createRefreshToken(user, deviceInfo, token);
   }
 
+  /**
+   * Validate a refresh token for a user
+   * @delegate SessionService
+   */
   async validateRefreshToken(user: User, token: string): Promise<void> {
-    const foundToken = await this.refreshTokenRepository.findOne({
-      where: { token, user: { id: user.id }, isRevoked: false },
-      relations: ['user'],
-    });
-    if (!foundToken || foundToken.isExpired()) {
-      throw new UnauthorizedException('Invalid or expired refresh token');
-    }
+    return this.sessionService.validateRefreshToken(user, token);
   }
 
+  /**
+   * Remove (revoke) a refresh token
+   * @delegate SessionService
+   */
   async removeRefreshToken(user: User, token: string): Promise<void> {
-    const result = await this.refreshTokenRepository.update(
-      { token, user: { id: user.id } },
-      { isRevoked: true }
-    );
-    
-    if (result.affected === 0) {
-      this.logger.warn(`Failed to revoke refresh token for user ${user.id}`);
-    }
+    return this.sessionService.removeRefreshToken(user, token);
   }
 
+  /**
+   * Get all active sessions for a user
+   * @delegate SessionService
+   */
   async getActiveSessions(userId: string): Promise<RefreshToken[]> {
-    return this.refreshTokenRepository.find({
-      where: { 
-        user: { id: userId },
-        isRevoked: false,
-        expiresAt: MoreThan(new Date())
-      },
-      relations: ['user'],
-      order: { createdAt: 'DESC' }
-    });
+    return this.sessionService.getActiveSessions(userId);
   }
 
+  /**
+   * Revoke a specific session by ID
+   * @delegate SessionService
+   */
   async revokeSession(userId: string, sessionId: string, isAdmin: boolean): Promise<{ message: string }> {
-    const session = await this.refreshTokenRepository.findOne({
-      where: { id: sessionId },
-      relations: ['user']
-    });
-
-    if (!session) {
-      throw new NotFoundException('Session not found');
-    }
-
-    // Only allow users to revoke their own sessions unless they're an admin
-    if (session.user.id !== userId && !isAdmin) {
-      throw new ForbiddenException('You can only revoke your own sessions');
-    }
-
-    session.isRevoked = true;
-    await this.refreshTokenRepository.save(session);
-    
-    return { message: 'Session revoked successfully' };
+    return this.sessionService.revokeSession(userId, sessionId, isAdmin);
   }
 
+  /**
+   * Revoke all tokens for a user
+   * @delegate TokenManagerService
+   */
   async revokeAllTokens(userId: string): Promise<{ message: string; count: number }> {
-    this.logger.log(`Revoking all tokens for user ${userId}`);
-    
-    try {
-      const result = await this.refreshTokenRepository.update(
-        { user: { id: userId }, isRevoked: false },
-        { isRevoked: true }
-      );
-      
-      if (result.affected === 0) {
-        this.logger.warn(`No active tokens found for user ${userId}`);
-        return { message: 'No active tokens found', count: 0 };
-      }
-      
-      this.logger.log(`Successfully revoked ${result.affected} tokens for user ${userId}`);
-      return { 
-        message: 'All tokens revoked successfully', 
-        count: result.affected 
-      };
-    } catch (error) {
-      this.logger.error(`Failed to revoke tokens for user ${userId}: ${error.message}`, error.stack);
-      throw new InternalServerErrorException('Failed to revoke tokens due to a database error');
-    }
+    return this.tokenManagerService.revokeAllTokens(userId);
+  }
+
+  /**
+   * Perform scheduled cleanup of expired tokens
+   * @delegate TokenCleanupService
+   */
+  async cleanupExpiredTokens(): Promise<void> {
+    return this.tokenCleanupService.cleanupExpiredTokens();
+  }
+
+  /**
+   * Manually trigger cleanup of expired tokens
+   * @delegate TokenCleanupService
+   */
+  async manualCleanupExpiredTokens(): Promise<TokenCleanupResponseDto> {
+    // First trigger the consumer to process any pending tokens
+    await this.tokenConsumerService.triggerProcessing();
+    // Then run the regular cleanup
+    return this.tokenCleanupService.manualCleanupExpiredTokens();
+  }
+  
+  /**
+   * Find a token record by refresh token string
+   * @delegate TokenManagerService
+   */
+  async findByRefreshToken(refreshToken: string): Promise<RefreshToken | null> {
+    return this.tokenManagerService.findByToken(refreshToken);
+  }
+  
+  /**
+   * Delete a token by ID
+   * @delegate TokenManagerService
+   */
+  async delete(tokenId: string): Promise<boolean> {
+    return this.tokenManagerService.deleteToken(tokenId);
+  }
+  
+  /**
+   * Invalidate a refresh token
+   * @delegate TokenManagerService
+   */
+  async invalidateRefreshToken(refreshToken: string): Promise<void> {
+    return this.tokenManagerService.invalidateToken(refreshToken);
+  }
+  
+  /**
+   * Rotate a refresh token (replace with a new one)
+   * @delegate TokenManagerService
+   */
+  async rotateRefreshToken(oldRefreshToken: string): Promise<string> {
+    return this.tokenManagerService.rotateToken(oldRefreshToken);
+  }
+  
+  /**
+   * Delete a token by session ID for a specific user
+   * @delegate SessionService
+   */
+  async deleteById(sessionId: string, userId: string): Promise<{ message: string }> {
+    return this.sessionService.deleteSession(sessionId, userId);
+  }
+  
+  /**
+   * Invalidate all tokens for a user
+   * @delegate TokenManagerService via revokeAllTokens
+   */
+  async invalidateAllUserTokens(userId: string): Promise<void> {
+    const result = await this.revokeAllTokens(userId);
+    this.logger.log(`Invalidated ${result.count} tokens for user ${userId}`);
+  }
+
+  /**
+   * Trigger token queue processing
+   * @delegate TokenConsumerService
+   */
+  async triggerTokenProcessing(): Promise<void> {
+    return this.tokenConsumerService.triggerProcessing();
+  }
+
+  /**
+   * Synchronize tokens with blacklist
+   * @delegate TokenConsumerService
+   */
+  async synchronizeTokenBlacklist(): Promise<void> {
+    return this.tokenConsumerService.synchronizeBlacklist();
   }
 }

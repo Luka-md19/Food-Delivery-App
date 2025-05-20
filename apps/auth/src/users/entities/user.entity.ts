@@ -9,7 +9,7 @@ import {
 import { Exclude } from 'class-transformer';
 import { UserRole } from '@app/common';
 import { RefreshToken } from '../../token/entities/refresh-token.entity';
-import { ResetPasswordToken } from '../../Reset-Password/reset-password-token.entity';
+import { ResetPasswordToken } from '../../reset-password/reset-password-token.entity';
 import { AuditLog } from '../../audit-log/audit-log.entity';
 
 @Entity('users')

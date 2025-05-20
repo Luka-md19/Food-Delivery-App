@@ -2,6 +2,7 @@
 import { Type, applyDecorators } from '@nestjs/common';
 import { ApiExtraModels, ApiOkResponse, getSchemaPath } from '@nestjs/swagger';
 
+// Works with the SwaggerPaginatedResponse interface
 export const ApiPaginatedResponse = <TModel extends Type<any>>(
   model: TModel,
   description?: string

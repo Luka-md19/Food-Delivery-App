@@ -72,5 +72,23 @@ export interface IMenuRepository {
    * Find a menu containing a specific menu item
    * @param itemId Menu item ID
    */
-  findMenuByItemId(itemId: string): Promise<any | null>;
+  findMenuByItemId(itemId: string): Promise<any[]>;
+
+  /**
+   * Find a menu containing a specific category
+   * @param categoryId Category ID
+   */
+  findMenuByCategoryId(categoryId: string): Promise<any[]>;
+  
+  /**
+   * Get the MongoDB collection for categories
+   * @returns Promise resolving to the MongoDB collection for categories
+   */
+  getCategoryCollection(): Promise<any>;
+
+  /**
+   * Get the MongoDB collection for menu items
+   * @returns Promise resolving to the MongoDB collection for menu items
+   */
+  getMenuItemCollection(): Promise<any>;
 } 

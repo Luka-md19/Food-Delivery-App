@@ -17,18 +17,19 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { CategoryService } from '../services';
+import { CachedCategoryService } from '../services/cached-category.service';
 import { CreateCategoryDto, UpdateCategoryDto, CategoryResponseDto } from '../dto';
 import { ApiController, ApiPaginatedResponse, ApiPaginatioQuery, ApiAuth } from '@app/common/swagger';
-import { RateLimit } from '@app/common/rate-limiter';
+import { DynamicRateLimit } from '@app/common/rate-limiter';
 import { JwtAuthGuard, RolesGuard, Roles, UserRole } from '@app/common';
 
 @Controller('categories')
 @ApiController('categories')
 export class CategoryController {
-  constructor(private readonly categoryService: CategoryService) {}
+  constructor(private readonly categoryService: CachedCategoryService) {}
 
   @Get()
-  @RateLimit('MENU', 'findAll')
+  @DynamicRateLimit('MENU', 'findAll')
   @ApiOperation({ summary: 'Get all categories with pagination' })
   @ApiPaginatioQuery()
   @ApiQuery({ name: 'active', required: false, type: Boolean, description: 'Filter to active categories only' })
@@ -48,7 +49,7 @@ export class CategoryController {
   }
 
   @Get(':id')
-  @RateLimit('MENU', 'findById')
+  @DynamicRateLimit('MENU', 'findById')
   @ApiOperation({ summary: 'Get a category by ID' })
   @ApiParam({ name: 'id', description: 'Category ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Category found', type: CategoryResponseDto })
@@ -62,7 +63,7 @@ export class CategoryController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
   @ApiAuth()
-  @RateLimit('MENU', 'create')
+  @DynamicRateLimit('MENU', 'create')
   @ApiOperation({ summary: 'Create a new category' })
   @ApiResponse({ status: HttpStatus.CREATED, description: 'Category created', type: CategoryResponseDto })
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input' })
@@ -77,7 +78,7 @@ export class CategoryController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
   @ApiAuth()
-  @RateLimit('MENU', 'update')
+  @DynamicRateLimit('MENU', 'update')
   @ApiOperation({ summary: 'Update a category' })
   @ApiParam({ name: 'id', description: 'Category ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Category updated', type: CategoryResponseDto })
@@ -94,7 +95,7 @@ export class CategoryController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
   @ApiAuth()
-  @RateLimit('MENU', 'delete')
+  @DynamicRateLimit('MENU', 'delete')
   @ApiOperation({ summary: 'Delete a category' })
   @ApiParam({ name: 'id', description: 'Category ID' })
   @ApiResponse({ status: HttpStatus.NO_CONTENT, description: 'Category deleted' })
@@ -111,7 +112,7 @@ export class CategoryController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
   @ApiAuth()
-  @RateLimit('MENU', 'addItemToCategory')
+  @DynamicRateLimit('MENU', 'addItemToCategory')
   @ApiOperation({ summary: 'Add an item to a category' })
   @ApiParam({ name: 'categoryId', description: 'Category ID' })
   @ApiParam({ name: 'itemId', description: 'Item ID' })
@@ -131,7 +132,7 @@ export class CategoryController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
   @ApiAuth()
-  @RateLimit('MENU', 'removeItemFromCategory')
+  @DynamicRateLimit('MENU', 'removeItemFromCategory')
   @ApiOperation({ summary: 'Remove an item from a category' })
   @ApiParam({ name: 'categoryId', description: 'Category ID' })
   @ApiParam({ name: 'itemId', description: 'Item ID' })

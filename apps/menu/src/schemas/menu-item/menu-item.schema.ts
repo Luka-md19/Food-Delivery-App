@@ -4,6 +4,74 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export type MenuItemDocument = MenuItem & Document;
 
+// Nested option value schema
+@Schema({ _id: false })
+export class OptionValue {
+  @ApiProperty({ description: 'Option value name', example: 'Small' })
+  @Prop({ required: true })
+  name: string;
+
+  @ApiProperty({ description: 'Additional price for this option', example: 2.00 })
+  @Prop({ required: true, default: 0 })
+  price: number;
+
+  @ApiPropertyOptional({ description: 'Whether this option value is available', example: true })
+  @Prop({ default: true })
+  available: boolean;
+
+  @ApiPropertyOptional({ description: 'Description of this option value', example: '12 inch diameter' })
+  @Prop()
+  description?: string;
+
+  @ApiPropertyOptional({ description: 'External ID for integrations', example: 'POS-123' })
+  @Prop()
+  externalId?: string;
+}
+
+export const OptionValueSchema = SchemaFactory.createForClass(OptionValue);
+
+// Nested option type schema
+@Schema({ _id: false })
+export class OptionType {
+  @ApiProperty({ description: 'Option group name', example: 'Size' })
+  @Prop({ required: true })
+  name: string;
+
+  @ApiPropertyOptional({ description: 'Option group description', example: 'Choose your pizza size' })
+  @Prop()
+  description?: string;
+
+  @ApiProperty({ description: 'Whether selecting an option is required', example: true })
+  @Prop({ default: false })
+  required: boolean;
+
+  @ApiProperty({ description: 'Whether multiple options can be selected', example: false })
+  @Prop({ default: false })
+  multiple: boolean;
+
+  @ApiPropertyOptional({ description: 'Minimum selections required (if multiple)', example: 1 })
+  @Prop({ min: 0 })
+  minSelections?: number;
+
+  @ApiPropertyOptional({ description: 'Maximum selections allowed (if multiple)', example: 3 })
+  @Prop({ min: 0 })
+  maxSelections?: number;
+
+  @ApiProperty({ description: 'Available option values', type: [OptionValue] })
+  @Prop({ type: [OptionValueSchema], default: [] })
+  values: OptionValue[];
+
+  @ApiPropertyOptional({ description: 'Display order for this option group', example: 1 })
+  @Prop({ default: 0 })
+  displayOrder?: number;
+
+  @ApiProperty({ description: 'Unique identifier for this option type', example: 'size-option' })
+  @Prop()
+  id?: string;
+}
+
+export const OptionTypeSchema = SchemaFactory.createForClass(OptionType);
+
 @Schema({
   timestamps: true,
   collection: 'menuItems',
@@ -85,37 +153,10 @@ export class MenuItem {
 
   @ApiPropertyOptional({ 
     description: 'Item customization options',
-    example: [
-      {
-        name: 'Size',
-        required: true,
-        multiple: false,
-        options: [
-          { name: 'Small', price: 0 },
-          { name: 'Medium', price: 2 },
-          { name: 'Large', price: 4 }
-        ]
-      }
-    ]
+    type: [OptionType]
   })
-  @Prop([{
-    name: String,
-    required: Boolean,
-    multiple: Boolean,
-    options: [{
-      name: String,
-      price: Number
-    }]
-  }])
-  options?: Array<{
-    name: string;
-    required: boolean;
-    multiple: boolean;
-    options: Array<{
-      name: string;
-      price: number;
-    }>;
-  }>;
+  @Prop({ type: [OptionTypeSchema], default: [] })
+  options?: OptionType[];
 
   @ApiProperty({ description: 'Whether the item is available', example: true })
   @Prop({ default: true })
@@ -149,4 +190,32 @@ export const MenuItemSchema = SchemaFactory.createForClass(MenuItem);
 MenuItemSchema.index({ categoryId: 1, available: 1 });
 MenuItemSchema.index({ categoryId: 1, price: 1 });
 MenuItemSchema.index({ featured: 1 });
-MenuItemSchema.index({ name: 'text', description: 'text', tags: 'text' }); 
+MenuItemSchema.index({ name: 'text', description: 'text', tags: 'text' });
+
+// Add compound indexes for better query performance
+MenuItemSchema.index({ categoryId: 1, available: 1, price: 1 });
+MenuItemSchema.index({ categoryId: 1, available: 1, featured: 1 });
+MenuItemSchema.index({ categoryId: 1, available: 1, name: 1 });
+MenuItemSchema.index({ categoryId: 1, available: 1, displayOrder: 1 });
+
+// Add partial index for active items
+MenuItemSchema.index({ available: 1 }, { partialFilterExpression: { available: true } });
+
+// Add text index for search functionality
+MenuItemSchema.index(
+  { 
+    name: 'text', 
+    description: 'text',
+    ingredients: 'text',
+    tags: 'text'
+  }, 
+  {
+    weights: {
+      name: 10,
+      description: 5,
+      ingredients: 3,
+      tags: 4
+    },
+    name: 'menu_items_text_index'
+  }
+); 

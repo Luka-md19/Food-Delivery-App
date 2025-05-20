@@ -5,7 +5,6 @@ import {
     Param, 
     Body, 
     UseGuards, 
-    Logger,
     UnauthorizedException
   } from '@nestjs/common';
   import { 
@@ -20,12 +19,15 @@ import {
     JwtAuthGuard, 
     CurrentUser, 
     Jwtpayload, 
-    ApiAuth 
+    ApiAuth,
+    LoggerFactory
   } from '@app/common';
   
   @ApiTags('Users')
   @Controller('users')
   export class UsersController {
+    private readonly logger = LoggerFactory.getLogger('UsersController');
+    
     constructor(private readonly usersService: UsersService) {}
   
     @Get('profile')
@@ -33,15 +35,13 @@ import {
     @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Get current user profile' })
     async getProfile(@CurrentUser() user: Jwtpayload) {
-        const logger = new Logger('UsersController');
-        
         if (!user) {
-            logger.error('No user data available in request');
+            this.logger.error('No user data available in request');
             throw new UnauthorizedException('User data not found');
         }
     
         if (!user.userId) {
-            logger.error('No userId found in user data');
+            this.logger.error('No userId found in user data');
             throw new UnauthorizedException('Invalid user data');
         }
     

@@ -1,27 +1,30 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { PassportStrategy } from '@nestjs/passport';
-import { ExtractJwt, Strategy } from 'passport-jwt';
-import { AppConfigService } from '@app/common/config/config.service';
+import { Injectable } from '@nestjs/common';
+import { BaseJwtPayload, JwtStrategyBase } from '@app/common/auth/strategies';
+import { AppConfigService, Jwtpayload } from '@app/common';
 
+/**
+ * Menu service implementation of the JwtStrategy
+ * Extends the common base implementation with service-specific logic
+ */
 @Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(private readonly configService: AppConfigService) {
-    super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET'),
-    });
+export class JwtStrategy extends JwtStrategyBase {
+  constructor(configService: AppConfigService) {
+    super(configService);
   }
-
-  async validate(payload: any) {
-    if (!payload.sub || !payload.email) {
-      throw new UnauthorizedException('Invalid token payload');
-    }
-
+  
+  /**
+   * Override the base validate method to customize for menu service
+   * Maps the userId to id for compatibility with menu service components
+   */
+  override async validate(payload: BaseJwtPayload): Promise<any> {
+    // Validate basic payload structure
+    await super.validate(payload);
+    
+    // Return user object with the format expected by the menu service
     return {
-      id: payload.sub,
+      id: payload.userId,
       email: payload.email,
-      roles: payload.roles || [],
+      roles: payload.roles || []
     };
   }
 } 

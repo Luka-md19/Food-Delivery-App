@@ -14,7 +14,11 @@ export class ConfigModule {
       module: ConfigModule,
       imports: [
         NestConfigModule.forRoot({
-          envFilePath: `apps/${service}/.env`,
+          envFilePath: [
+            '.env',                // Root .env with shared variables (lowest precedence)
+            `.env.${process.env.NODE_ENV || 'development'}`, // Environment-specific variables
+            `apps/${service}/.env` // Service-specific variables (highest precedence)
+          ],
           load: [databaseConfig, mongodbConfig],
           isGlobal: true,
           validationSchema: Joi.object({
@@ -29,23 +33,41 @@ export class ConfigModule {
             DATABASE_NAME: Joi.string().optional(),
             DATABASE_SYNC: Joi.string().optional(),
             DATABASE_AUTOLOAD: Joi.string().optional(),
+            DATABASE_LOGGING: Joi.string().optional(),
+            
+            // Database connection pooling configuration
+            DATABASE_POOL_SIZE: Joi.number().optional().default(10),
+            DATABASE_MAX_POOL_SIZE: Joi.number().optional().default(20),
+            DATABASE_CONNECTION_TIMEOUT: Joi.number().optional().default(10000),
+            DATABASE_IDLE_TIMEOUT: Joi.number().optional().default(30000),
+            DATABASE_QUERY_TIMEOUT: Joi.number().optional().default(30000),
+            DATABASE_SSL_ENABLED: Joi.boolean().optional().default(false),
             
             // JWT Configuration (shared across services)
             JWT_SECRET: Joi.string().required(),
-            JWT_EXPIRATION: Joi.string().default('15m'),
+            JWT_EXPIRATION: Joi.string().default('1h'),
             REFRESH_TOKEN_EXPIRATION: Joi.string().default('7d'),
             
-            // Optional MongoDB Configuration (for menu service)
+            // MongoDB Configuration (for menu service)
             MONGODB_URI: Joi.string().optional(),
             MONGODB_DATABASE: Joi.string().optional(),
             MONGODB_MAX_POOL_SIZE: Joi.number().optional(),
             MONGODB_CONNECT_TIMEOUT: Joi.number().optional(),
             MONGODB_SOCKET_TIMEOUT: Joi.number().optional(),
+            MONGODB_SSL_ENABLED: Joi.boolean().optional(),
+            
+            // Service Authentication
+            SERVICE_ID: Joi.string().optional(),
+            SERVICE_NAME: Joi.string().optional(),
+            SERVICE_API_KEY: Joi.string().optional(),
+            SERVICE_API_KEYS: Joi.string().optional(),
+            SERVICE_PERMISSIONS: Joi.string().optional(),
+            AUTH_SERVICE_URL: Joi.string().optional(),
           }),
         }),
       ],
       providers: [AppConfigService],
-      exports: [AppConfigService, NestConfigModule],
+      exports: [AppConfigService],
     };
   }
 }

@@ -1,14 +1,14 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy, VerifyCallback } from 'passport-google-oauth20';
-import { AuthService } from '../auth.service';
+import { AuthFacade } from '../auth/auth.facade';
 import { AppConfigService } from '@app/common';
 import { UserRole } from '@app/common';
 
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   constructor(
-    private readonly authService: AuthService,
+    private readonly authFacade: AuthFacade,
     private readonly configService: AppConfigService,
   ) {
     super({
@@ -32,8 +32,8 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       const firstName = profile.name.givenName;
       const lastName = profile.name.familyName;
 
-      // Delegate to AuthService to validate or create the user and generate tokens
-      const tokenResponse = await this.authService.validateGoogleUser({
+      // Delegate to AuthFacade to validate or create the user and generate tokens
+      const tokenResponse = await this.authFacade.validateGoogleUser({
         googleId,
         email,
         firstName,

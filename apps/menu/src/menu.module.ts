@@ -1,13 +1,67 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module, forwardRef, NestModule, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
 import { MenuController, CategoryController, MenuItemController, RestaurantController } from './controllers';
 import { AdminController } from './controllers/admin.controller';
 import { MenuService, CategoryService, MenuItemService, RestaurantService, AdminService } from './services';
-import { MongoDBModule } from '@app/common/database/mongodb';
-import { ConfigModule, HealthModule, RedisModule, LoggerModule, MessagingModule, ErrorsModule } from '@app/common';
-import { LoggerFactory, LogLevel, LogFormat, LogTransport } from '@app/common';
+import { CachedMenuService } from './services/cached-menu.service';
+import { CachedCategoryService } from './services/cached-category.service';
+import { CachedMenuItemService } from './services/cached-menu-item.service';
+import { BypassCacheMiddleware } from './services/bypass-cache.middleware';
+
+// Import common module features in organized groups
+import { 
+  // Configuration and fundamentals
+  ConfigModule, 
+  HealthModule, 
+  LoggerModule, 
+  LogLevel, 
+  LogFormat, 
+  LogTransport,
+  
+  // Database and data access
+  MongoDBModule,
+  
+  // Messaging and communication
+  MessagingModule,
+  EventPublisher,
+  IEventPublisher,
+  
+  // Error handling
+  ErrorsModule,
+  
+  // Authentication and authorization
+  ServiceAuthModule, 
+  ServiceJwtStrategy, 
+  ServiceTokenInterceptor,
+  
+  // Caching and Redis
+  RedisModule,
+  CacheModule,
+  CacheService,
+  TokenBlacklistService,
+  
+  // Rate limiting
+  ThrottlerModule,
+  DisabledThrottlerStorage,
+  
+  // Services
+  AppConfigService, 
+  ValidatorService, 
+  ErrorHandlerService, 
+  LoggerFactory,
+  MongoDBService,
+  
+  // Worker threads
+  WorkerThreadsModule,
+
+  // Load testing utilities for Docker
+  SimpleThrottlerConfig
+} from '@app/common';
+import { EVENT_PUBLISHER as CommonEventPublisher } from '@app/common/messaging/publishers';
+
+import { JwtModule } from '@app/common/jwt';
+import { CqrsModule, EventBus } from '@nestjs/cqrs';
 import { MenuRepository } from './repositories/menu/menu.repository';
 import { CategoryRepository } from './repositories/category/category.repository';
-import { CqrsModule, EventBus } from '@nestjs/cqrs';
 import { MenuDomainRepository } from './domain/repositories/menu/menu-domain.repository';
 import { MenuItemDomainRepository } from './domain/repositories/menu-item/menu-item-domain.repository';
 import { CategoryDomainRepository } from './domain/repositories/category/category-domain.repository';
@@ -15,9 +69,6 @@ import { RestaurantDomainRepository } from './domain/repositories/restaurant/res
 import { MenuAvailabilityService } from './domain/services/menu-availability.service';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { EventHandlers } from './events/handlers';
-import { EventPublisher } from './events/publishers/event-publisher';
-import { AppConfigService, ValidatorService, ErrorHandlerService, MongoDBService } from '@app/common';
-import { ThrottlerModule, ThrottlerStorageType } from '@app/common/rate-limiter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { MongooseModule } from '@nestjs/mongoose';
 import { FailedMessage, FailedMessageSchema } from './schemas/common';
@@ -28,11 +79,14 @@ import { Restaurant, RestaurantSchema } from './schemas/restaurant';
 import { FailedMessageRepository } from './repositories/common/failed-message.repository';
 import { MenuHealthController } from './health/menu-health.controller';
 import { FileStorageService, MessageRetryService } from './events/services';
-import { ServiceAuthModule, ServiceJwtStrategy, ServiceTokenInterceptor } from '@app/common';
-import { JwtModule } from '@app/common/Jwt';
-import { TokenBlacklistService } from '@app/common/redis/token-blacklist.service';
 import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { CleanupService } from './services/cleanup.service';
+import { v4 as uuidv4 } from 'uuid';
+import * as os from 'os';
+import { LoadTestController } from './controllers/load-test.controller';
+// Import ThrottlerStorage from NestJS directly
+import { ThrottlerStorage } from '@nestjs/throttler';
 
 // Define a factory to create domain repositories
 const domainRepositoryProviders = [
@@ -65,6 +119,10 @@ const infrastructureRepositoryProviders = [
     useClass: CategoryRepository,
   },
   {
+    provide: 'IMenuItemRepository',
+    useClass: MenuRepository,
+  },
+  {
     provide: 'IFailedMessageRepository',
     useClass: FailedMessageRepository,
   },
@@ -72,6 +130,7 @@ const infrastructureRepositoryProviders = [
 
 @Module({
   imports: [
+    // Config and logging
     ConfigModule.forRoot('menu'),
     LoggerModule.forRoot({
       appName: 'menu-service',
@@ -82,16 +141,9 @@ const infrastructureRepositoryProviders = [
         : [LogTransport.CONSOLE],
       logDir: 'logs/menu',
     }),
+    
+    // Database
     MongoDBModule.forRoot('menu'),
-    RedisModule,
-    MessagingModule,
-    CqrsModule,
-    JwtModule,
-    PassportModule.register({ defaultStrategy: 'jwt' }),
-    ScheduleModule.forRoot(),
-    HealthModule.register({ serviceName: 'menu-service' }),
-    ErrorsModule,
-    ServiceAuthModule.register(),
     MongooseModule.forRootAsync({
       inject: [AppConfigService],
       useFactory: async (configService: AppConfigService) => {
@@ -124,138 +176,217 @@ const infrastructureRepositoryProviders = [
       { name: MenuItem.name, schema: MenuItemSchema },
       { name: Restaurant.name, schema: RestaurantSchema }
     ]),
-    ThrottlerModule.forRoot({
-      ttl: 60,
-      limit: 100,
-      storageType: ThrottlerStorageType.REDIS,
-      errorMessage: 'Too many requests from this IP, please try again later',
-      excludePaths: ['/api/health'],
-      useGlobalGuard: true,
-      useGlobalFilter: true,
-      useGlobalInterceptor: true,
+    
+    // Cache and Redis
+    RedisModule,
+    CacheModule.register(),
+    
+    // Authentication
+    JwtModule,
+    PassportModule.register({ defaultStrategy: 'jwt' }),
+    ServiceAuthModule.register(),
+    
+    // Event handling and scheduling
+    CqrsModule,
+    MessagingModule.forRoot({
+      maxRetries: 3,
+      retryDelay: 1000,
+      failureThreshold: 5,
+      resetTimeout: 30000,
+      halfOpenRequests: 3,
+      successThreshold: 5
     }),
+    ScheduleModule.forRoot(),
+    
+    // Health and error handling
+    HealthModule.register({ 
+      serviceName: 'menu-service',
+      instanceId: `menu-${process.env.POD_NAME || process.env.HOSTNAME || uuidv4().substring(0, 8)}`,
+    }),
+    ErrorsModule,
+    
+    // Rate limiting - Using environment variable to toggle
+    ...(process.env.ENABLE_RATE_LIMITING !== 'false' ? [
+      // Standard rate limiting configuration when enabled (the default)
+      ThrottlerModule.registerAsync({
+        imports: [ConfigModule],
+        useFactory: (configService: AppConfigService) => ({
+          ttl: configService.get('THROTTLE_TTL', 60),
+          limit: configService.get('THROTTLE_LIMIT', 100),
+          storage: 'redis',
+          microserviceName: 'menu-service',
+          errorMessage: 'Too many requests from this IP, please try again later',
+          excludeRoutes: ['/api/health'],
+          keyPrefix: 'menu-throttler:',
+          useGlobalGuard: true,
+          useGlobalFilter: true,
+          useGlobalInterceptor: true,
+        }),
+        inject: [AppConfigService],
+      }),
+    ] : [
+      // Disabled rate limiting configuration when ENABLE_RATE_LIMITING=false
+      ThrottlerModule.forRoot({
+        ttl: 60,
+        limit: 100000, // Very high limit
+        storage: 'memory',
+        microserviceName: 'menu-service', 
+        errorMessage: 'Rate limiting disabled for testing',
+        excludeRoutes: ['/health', '/load-test/*'],
+        keyPrefix: 'menu-throttler:',
+        useGlobalGuard: false,
+        useGlobalFilter: true,
+        useGlobalInterceptor: true,
+        extraProviders: [
+          {
+            provide: ThrottlerStorage,
+            useClass: DisabledThrottlerStorage,
+          }
+        ]
+      }),
+    ]),
+    
+    // Worker threads for CPU-intensive operations
+    WorkerThreadsModule.register(),
+    
+    // Client modules for microservice communication
     ClientsModule.registerAsync([
       {
-        name: 'RABBITMQ_CLIENT',
-        useFactory: (configService: AppConfigService) => {
-          const useDocker = configService.get<string>('USE_DOCKER', 'false');
-          const isDocker = useDocker === 'true';
-          const rabbitmqUrl = configService.get(
-            'RABBITMQ_URL',
-            isDocker ? 'amqp://rabbitmq:5672' : 'amqp://localhost:5672'
-          );
-          const rabbitmqQueue = configService.get('RABBITMQ_QUEUE', 'menu_events');
-
-          return {
-            transport: Transport.RMQ,
-            options: {
-              urls: [rabbitmqUrl],
-              queue: rabbitmqQueue,
-              queueOptions: {
-                durable: true,
-              },
-            },
-          };
-        },
+        name: 'AUTH_SERVICE',
         inject: [AppConfigService],
+        useFactory: (configService: AppConfigService) => ({
+          transport: Transport.TCP,
+          options: {
+            host: configService.get('AUTH_SERVICE_HOST', 'auth'),
+            port: +configService.get('AUTH_SERVICE_PORT', 3001),
+          },
+        }),
       },
     ]),
   ],
-  controllers: [MenuController, MenuHealthController, CategoryController, MenuItemController, RestaurantController, AdminController],
+  controllers: [
+    // API controllers
+    MenuController, 
+    CategoryController, 
+    MenuItemController, 
+    RestaurantController, 
+    AdminController,
+    
+    // Health controller
+    MenuHealthController,
+    
+    // Load Test controller
+    LoadTestController
+  ],
   providers: [
+    // Add the domain and infrastructure repository providers
+    ...domainRepositoryProviders,
+    ...infrastructureRepositoryProviders,
+    ...EventHandlers,
+    
+    // Add the ServiceTokenInterceptor
+    ServiceTokenInterceptor,
+    
+    // Health Check Providers
+    {
+      provide: 'SERVICE_NAME',
+      useValue: 'menu-service'
+    },
+    {
+      provide: 'INSTANCE_ID',
+      useValue: `menu-${process.env.POD_NAME || process.env.HOSTNAME || uuidv4().substring(0, 8)}`
+    },
+    {
+      provide: 'HOSTNAME',
+      useValue: os.hostname()
+    },
+    {
+      provide: 'HEALTH_PATH',
+      useValue: 'health'
+    },
+    
     // Services
+    JwtStrategy,
+    ServiceJwtStrategy,
+    MenuService,
+    CategoryService,
+    MenuItemService,
+    RestaurantService,
+    AdminService,
+    CachedMenuService,
+    CachedCategoryService,
+    CachedMenuItemService,
+    ValidatorService,
+    AppConfigService,
+    // Provide ErrorHandlerService with factory instead of direct class
     {
-      provide: MenuService,
-      useFactory: (menuDomainRepo, categoryDomainRepo, errorHandler, validator) => {
-        return new MenuService(menuDomainRepo, categoryDomainRepo, errorHandler, validator);
-      },
-      inject: [
-        'IMenuDomainRepository',
-        'ICategoryDomainRepository',
-        ErrorHandlerService,
-        ValidatorService
-      ]
+      provide: ErrorHandlerService,
+      useFactory: () => new ErrorHandlerService('MenuModule')
     },
-    {
-      provide: CategoryService,
-      useFactory: (categoryDomainRepo, menuDomainRepo, menuItemDomainRepo, menuService, errorHandler, validator, eventBus) => {
-        return new CategoryService(categoryDomainRepo, menuDomainRepo, menuItemDomainRepo, menuService, errorHandler, validator, eventBus);
-      },
-      inject: [
-        'ICategoryDomainRepository',
-        'IMenuDomainRepository',
-        'IMenuItemDomainRepository',
-        MenuService,
-        ErrorHandlerService,
-        ValidatorService,
-        EventBus
-      ]
-    },
-    {
-      provide: MenuItemService,
-      useFactory: (menuItemDomainRepo, categoryDomainRepo, errorHandler, validator, eventBus) => {
-        return new MenuItemService(menuItemDomainRepo, categoryDomainRepo, errorHandler, validator, eventBus);
-      },
-      inject: [
-        'IMenuItemDomainRepository',
-        'ICategoryDomainRepository',
-        ErrorHandlerService,
-        ValidatorService,
-        EventBus
-      ]
-    },
-    {
-      provide: RestaurantService,
-      useFactory: (restaurantDomainRepo, errorHandler, validator, eventBus) => {
-        return new RestaurantService(restaurantDomainRepo, errorHandler, validator, eventBus);
-      },
-      inject: [
-        'IRestaurantDomainRepository',
-        ErrorHandlerService,
-        ValidatorService,
-        EventBus
-      ]
-    },
-    {
-      provide: AdminService,
-      useFactory: (failedMessageRepo, messageRetryService) => {
-        return new AdminService(failedMessageRepo, messageRetryService);
-      },
-      inject: [
-        'IFailedMessageRepository',
-        'IMessageRetryService'
-      ]
-    },
+    
+    // Domain services
     MenuAvailabilityService,
-    {
-      provide: 'IMessageRetryService',
-      useClass: MessageRetryService,
-    },
+    
+    // Event infrastructure
     {
       provide: 'IFileStorageService',
       useClass: FileStorageService,
     },
-    
-    // Repositories - infrastructure first to avoid circular dependencies
-    ...infrastructureRepositoryProviders,
-    ...domainRepositoryProviders,
-    
-    // Database connection
     {
-      provide: 'DatabaseConnection',
-      useFactory: (mongoDBService: MongoDBService) => {
-        return mongoDBService.getDb();
+      provide: MessageRetryService,
+      useFactory: (failedMessageRepo, eventPublisher, fileStorageService, mongoDBService) => {
+        return new MessageRetryService(failedMessageRepo, eventPublisher, fileStorageService, mongoDBService);
       },
-      inject: [MongoDBService],
+      inject: [
+        'IFailedMessageRepository',
+        'IEventPublisher',
+        'IFileStorageService',
+        MongoDBService
+      ]
+    },
+    FileStorageService,
+    {
+      provide: CommonEventPublisher,
+      useExisting: EventPublisher,
+    },
+    // Add back the IEventPublisher provider
+    {
+      provide: 'IEventPublisher',
+      useClass: EventPublisher,
+    },
+    // Add the IMessageRetryService provider
+    {
+      provide: 'IMessageRetryService',
+      useExisting: MessageRetryService,
     },
     
-    // Event handling
-    ...EventHandlers,
-    EventPublisher,
-    ServiceJwtStrategy,
-    JwtStrategy,
-    TokenBlacklistService,
-    ServiceTokenInterceptor,
+    // Add the cleanup service
+    CleanupService,
   ],
+  exports: [
+    MenuService,
+    CategoryService,
+    MenuItemService,
+    RestaurantService,
+    AdminService,
+    CachedMenuService,
+    CachedCategoryService,
+    CachedMenuItemService
+  ]
 })
-export class MenuModule {}
+export class MenuModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    // Apply BypassCacheMiddleware to all routes that might use caching
+    consumer
+      .apply(BypassCacheMiddleware)
+      .forRoutes(
+        { path: '/api/menus', method: RequestMethod.GET },
+        { path: '/api/menus/*', method: RequestMethod.GET },
+        { path: '/api/categories', method: RequestMethod.GET },
+        { path: '/api/categories/*', method: RequestMethod.GET },
+        { path: '/api/menu-items', method: RequestMethod.GET },
+        { path: '/api/menu-items/*', method: RequestMethod.GET },
+        { path: '/api/restaurants/*/menus', method: RequestMethod.GET }
+      );
+  }
+}

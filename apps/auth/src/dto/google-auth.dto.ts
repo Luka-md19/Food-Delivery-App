@@ -1,27 +1,40 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsEmail, IsNotEmpty } from 'class-validator';
 
-export class GoogleUserDto {
+/**
+ * DTO for handling Google authentication from mobile clients
+ * This is used when clients handle the OAuth flow and send the token to the backend
+ */
+export class GoogleAuthDto {
   @ApiProperty({
-    example: '114252345676',
-    description: 'Unique Google ID for the user'
+    description: 'Google user ID',
+    example: '115366585632454821870',
   })
+  @IsString()
+  @IsNotEmpty()
   googleId: string;
 
   @ApiProperty({
-    example: 'user@gmail.com',
-    description: 'User email from Google account'
+    description: 'User email address (verified by Google)',
+    example: 'user@example.com',
   })
+  @IsEmail()
+  @IsNotEmpty()
   email: string;
 
   @ApiProperty({
+    description: 'User first name',
     example: 'John',
-    description: 'First name from Google profile'
   })
+  @IsString()
+  @IsNotEmpty()
   firstName: string;
 
   @ApiProperty({
+    description: 'User last name',
     example: 'Doe',
-    description: 'Last name from Google profile'
   })
+  @IsString()
+  @IsNotEmpty()
   lastName: string;
 }

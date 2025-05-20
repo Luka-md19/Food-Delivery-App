@@ -19,7 +19,7 @@ import { ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { RestaurantService } from '../services';
 import { CreateRestaurantDto, UpdateRestaurantDto, RestaurantResponseDto } from '../dto';
 import { ApiController, ApiPaginatedResponse, ApiPaginatioQuery, ApiAuth } from '@app/common/swagger';
-import { RateLimit } from '@app/common/rate-limiter';
+import { DynamicRateLimit } from '@app/common/rate-limiter';
 import { JwtAuthGuard, RolesGuard, Roles, UserRole } from '@app/common';
 
 @Controller('restaurants')
@@ -28,7 +28,7 @@ export class RestaurantController {
   constructor(private readonly restaurantService: RestaurantService) {}
 
   @Get()
-  @RateLimit('RESTAURANT', 'findAll')
+  @DynamicRateLimit('RESTAURANT', 'findAll')
   @ApiOperation({ summary: 'Get all restaurants with pagination' })
   @ApiPaginatioQuery()
   @ApiQuery({ name: 'active', required: false, type: Boolean, description: 'Filter to active restaurants only' })
@@ -48,7 +48,7 @@ export class RestaurantController {
   }
 
   @Get(':id')
-  @RateLimit('RESTAURANT', 'findById')
+  @DynamicRateLimit('RESTAURANT', 'findById')
   @ApiOperation({ summary: 'Get a restaurant by ID' })
   @ApiParam({ name: 'id', description: 'Restaurant ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Restaurant found', type: RestaurantResponseDto })
@@ -62,7 +62,7 @@ export class RestaurantController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiAuth()
-  @RateLimit('RESTAURANT', 'create')
+  @DynamicRateLimit('RESTAURANT', 'create')
   @ApiOperation({ summary: 'Create a new restaurant' })
   @ApiResponse({ status: HttpStatus.CREATED, description: 'Restaurant created', type: RestaurantResponseDto })
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input' })
@@ -77,7 +77,7 @@ export class RestaurantController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiAuth()
-  @RateLimit('RESTAURANT', 'update')
+  @DynamicRateLimit('RESTAURANT', 'update')
   @ApiOperation({ summary: 'Update a restaurant' })
   @ApiParam({ name: 'id', description: 'Restaurant ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Restaurant updated', type: RestaurantResponseDto })
@@ -94,7 +94,7 @@ export class RestaurantController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiAuth()
-  @RateLimit('RESTAURANT', 'delete')
+  @DynamicRateLimit('RESTAURANT', 'delete')
   @ApiOperation({ summary: 'Delete a restaurant' })
   @ApiParam({ name: 'id', description: 'Restaurant ID' })
   @ApiResponse({ status: HttpStatus.NO_CONTENT, description: 'Restaurant deleted' })

@@ -1,3 +1,5 @@
+import { ServiceMetrics } from '../services/health-check.service';
+
 /**
  * Interface for health check result
  */
@@ -21,6 +23,16 @@ export interface HealthCheckResult {
   service: string;
   
   /**
+   * Unique identifier for this service instance
+   */
+  instanceId: string;
+  
+  /**
+   * Hostname of this service instance
+   */
+  hostname: string;
+  
+  /**
    * Version of the service
    */
   version: string;
@@ -38,25 +50,10 @@ export interface HealthCheckResult {
   /**
    * Status of dependencies
    */
-  dependencies: {
-    /**
-     * RabbitMQ connection status
-     */
-    rabbitmq?: 'connected' | 'disconnected';
-    
-    /**
-     * Database connection status
-     */
-    database?: 'connected' | 'disconnected';
-    
-    /**
-     * Redis connection status
-     */
-    redis?: 'connected' | 'disconnected';
-    
-    /**
-     * Any other dependencies
-     */
-    [key: string]: 'connected' | 'disconnected' | undefined;
-  };
+  dependencies: Record<string, 'connected' | 'disconnected'>;
+  
+  /**
+   * Performance metrics for this instance
+   */
+  metrics?: ServiceMetrics;
 } 

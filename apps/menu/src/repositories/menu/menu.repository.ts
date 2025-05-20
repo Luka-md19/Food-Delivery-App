@@ -1,13 +1,32 @@
-import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
-import { MongoDBService } from '@app/common/database/mongodb';
+import { Injectable, OnModuleInit, Logger, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import { MongoDBService, BaseRepository, BaseDocument } from '@app/common/database/mongodb';
 import { IMenuRepository } from './menu.repository.interface';
 import { CreateMenuDto, UpdateMenuDto } from '../../dto';
 import { ObjectId } from 'mongodb';
-import { BaseRepository } from '../common/base.repository';
+
+// Define the Menu document type for MongoDB
+export interface MenuDocument extends BaseDocument {
+  restaurantId: string | ObjectId;
+  name: string;
+  description?: string;
+  active?: boolean;
+  availability?: {
+    daysOfWeek?: number[];
+    startTime?: string;
+    endTime?: string;
+  };
+  categories?: string[] | ObjectId[];
+  metadata?: Record<string, any>;
+}
+
+// Update the DTO to include categories
+export interface ExtendedUpdateMenuDto extends UpdateMenuDto {
+  categories?: string[] | ObjectId[];
+}
 
 @Injectable()
-export class MenuRepository extends BaseRepository implements OnModuleInit, IMenuRepository {
-  constructor(mongoDBService: MongoDBService) {
+export class MenuRepository extends BaseRepository<MenuDocument> implements IMenuRepository, OnModuleInit {
+  constructor(protected readonly mongoDBService: MongoDBService) {
     super(mongoDBService, 'menus', MenuRepository.name);
   }
 
@@ -15,84 +34,154 @@ export class MenuRepository extends BaseRepository implements OnModuleInit, IMen
     await super.onModuleInit();
   }
 
-  async findByRestaurantId(restaurantId: string, activeOnly = false): Promise<any[]> {
+  async findAll(filter: any = {}, page = 1, limit = 10): Promise<any[]> {
     try {
-      const objectId = this.validateObjectId(restaurantId);
+      // Process the filter to handle ObjectIds consistently
+      const processedFilter: Record<string, any> = {};
       
-      const filter: any = { restaurantId: objectId };
+      this.logger.debug(`Finding menus with filter: ${JSON.stringify(filter)}, page: ${page}, limit: ${limit}`);
+      
+      if (filter && typeof filter === 'object') {
+        Object.keys(filter).forEach(key => {
+          if (filter[key] === undefined) {
+            return; // Skip undefined values
+          }
+          
+          // Special handling for ID fields
+          if ((key === '_id' || key === 'restaurantId') && typeof filter[key] === 'string') {
+            try {
+              processedFilter[key] = new ObjectId(filter[key]);
+              this.logger.debug(`Converted ${key} to ObjectId: ${processedFilter[key]}`);
+            } catch (error) {
+              // If not a valid ObjectId, use the original string
+              this.logger.debug(`Invalid ObjectId format for ${key}: ${filter[key]}, using as string`);
+              processedFilter[key] = filter[key];
+            }
+          } else if (key === 'categories' && Array.isArray(filter[key])) {
+            // Handle categories array
+            processedFilter[key] = filter[key].map((catId: string) => {
+              if (typeof catId === 'string') {
+                try {
+                  return new ObjectId(catId);
+                } catch (error) {
+                  return catId;
+                }
+              }
+              return catId;
+            });
+          } else {
+            processedFilter[key] = filter[key];
+          }
+        });
+      }
+      
+      const collection = await this.getCollection();
+      
+      // Ensure valid pagination
+      const pagination = this.validator.validatePagination(page, limit);
+      const skip = (pagination.page - 1) * pagination.limit;
+      
+      this.logger.debug(`Using processed filter: ${JSON.stringify(processedFilter)}, skip: ${skip}, limit: ${pagination.limit}`);
+      
+      // Use a more flexible query with $or for ID fields if they exist in the filter
+      let finalQuery = processedFilter;
+      
+      if (processedFilter._id) {
+        const idValue = processedFilter._id;
+        finalQuery = {
+          ...processedFilter,
+          $or: [
+            { _id: idValue },
+            { _id: idValue.toString() }
+          ]
+        };
+        delete finalQuery._id; // Remove the original _id since we're using $or
+      }
+      
+      // Execute the query with the processed filter
+      const results = await collection
+        .find(finalQuery)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(pagination.limit)
+        .toArray();
+      
+      this.logger.debug(`Found ${results.length} menus matching the criteria`);
+      
+      // If no results, try a basic query to check if any menus exist
+      if (results.length === 0) {
+        const totalCount = await collection.countDocuments({});
+        this.logger.debug(`Total menus in collection: ${totalCount}`);
+      }
+      
+      // Deep copy to ensure we don't modify the original documents
+      const resultsCopy = results.map(menu => ({...menu}));
+      return resultsCopy;
+    } catch (error) {
+      this.logger.error(`Error in findAll: ${error.message}`);
+      return [];
+    }
+  }
+
+  async findByRestaurantId(restaurantId: string, activeOnly = false): Promise<MenuDocument[]> {
+    try {
+      let filter: any = {};
+      
+      try {
+        // Try to convert to ObjectId
+        filter.restaurantId = this.validateObjectId(restaurantId);
+      } catch (error) {
+        // Fall back to string if not a valid ObjectId
+        filter.restaurantId = restaurantId;
+      }
+      
       if (activeOnly) {
         filter.active = true;
       }
       
-      const collection = await this.getCollection();
-      return collection.find(filter).sort({ createdAt: -1 }).toArray();
+      this.logger.debug(`Finding menus by restaurant ID: ${restaurantId}, activeOnly=${activeOnly}`);
+      
+      return this.findAll(filter);
     } catch (error) {
       this.logger.error(`Error finding menus by restaurant ID: ${error.message}`);
       return [];
     }
   }
 
-  async create(createMenuDto: CreateMenuDto | any): Promise<any> {
+  async create(createMenuDto: CreateMenuDto): Promise<MenuDocument> {
     try {
-      const now = new Date();
+      // Convert restaurant ID to ObjectId if possible
+      let restaurantId = createMenuDto.restaurantId;
       
-      // Log the input data
-      this.logger.log(`Creating menu with data: ${JSON.stringify(createMenuDto)}`);
+      if (restaurantId) {
+        try {
+          restaurantId = this.validateObjectId(restaurantId).toString();
+        } catch (error) {
+          // Use as string if not a valid ObjectId
+        }
+      }
       
-      // Convert restaurantId to ObjectId safely
-      const restaurantObjectId = this.validateObjectId(createMenuDto.restaurantId);
-      this.logger.log(`Converted restaurantId to ObjectId: ${restaurantObjectId}`);
-      
-      const menu = {
-        ...createMenuDto,
-        restaurantId: restaurantObjectId,
+      // Create menu document
+      const menuDoc: Partial<MenuDocument> = {
+        name: createMenuDto.name,
+        description: createMenuDto.description || '',
+        restaurantId: restaurantId,
+        active: createMenuDto.active !== undefined ? createMenuDto.active : true,
+        availability: createMenuDto.availability,
+        metadata: createMenuDto.metadata,
         categories: [],
-        createdAt: now,
-        updatedAt: now,
-        version: 0
       };
       
-      // Log the menu object to be inserted
-      this.logger.log(`Menu object to be inserted: ${JSON.stringify(menu)}`);
-      
-      // Get the collection and log its status
-      const collection = await this.getCollection();
-      this.logger.log(`Got collection: ${this.collectionName}, namespace: ${collection.namespace}`);
-      
-      // Log the MongoDB connection status
-      const db = await this.mongoDBService.getDb();
-      this.logger.log(`MongoDB connection status: ${db.databaseName}`);
-      
-      // Insert the menu
-      this.logger.log('Inserting menu into MongoDB...');
-      const result = await collection.insertOne(menu);
-      
-      // Log the result
-      this.logger.log(`Insert result: ${JSON.stringify(result)}`);
-      
-      if (!result.insertedId) {
-        this.logger.error('Failed to generate ID for menu');
-        throw new Error('Failed to generate ID for menu');
-      }
-      
-      // Fetch the complete document to ensure we have all fields
-      this.logger.log(`Fetching saved menu with ID: ${result.insertedId}`);
-      const savedMenu = await collection.findOne({ _id: result.insertedId });
-      
-      if (!savedMenu) {
-        this.logger.error('Failed to retrieve saved menu');
-        throw new Error('Failed to retrieve saved menu');
-      }
-      
-      this.logger.log(`Successfully saved menu: ${JSON.stringify(savedMenu)}`);
-      return savedMenu;
+      // Use base repository create method
+      const result = await super.create(menuDoc as MenuDocument);
+      return result;
     } catch (error) {
-      this.logger.error(`Error creating menu: ${error.message}`, error.stack);
+      this.logger.error(`Error creating menu: ${error.message}`);
       throw error;
     }
   }
 
-  async update(id: string, updateMenuDto: UpdateMenuDto): Promise<any | null> {
+  async update(id: string, updateMenuDto: UpdateMenuDto | ExtendedUpdateMenuDto): Promise<any | null> {
     try {
       // Convert id to ObjectId safely
       const objectId = this.validateObjectId(id);
@@ -103,7 +192,7 @@ export class MenuRepository extends BaseRepository implements OnModuleInit, IMen
       this.logger.debug(`Updating menu with ID ${id}`);
       
       // First check if the menu exists
-      const existingMenu = await collection.findOne({ _id: objectId });
+      const existingMenu = await collection.findOne({ _id: objectId } as any);
       if (!existingMenu) {
         this.logger.debug(`Menu with ID ${id} not found for update`);
         return null;
@@ -119,7 +208,7 @@ export class MenuRepository extends BaseRepository implements OnModuleInit, IMen
       
       // Use updateOne instead of findOneAndUpdate
       const updateResult = await collection.updateOne(
-        { _id: objectId },
+        { _id: objectId } as any,
         { $set: updatedMenu }
       );
       
@@ -129,104 +218,71 @@ export class MenuRepository extends BaseRepository implements OnModuleInit, IMen
       }
       
       // Fetch the updated document
-      return collection.findOne({ _id: objectId });
+      return collection.findOne({ _id: objectId } as any);
     } catch (error) {
       this.logger.error(`Error updating menu: ${error.message}`);
       return null;
     }
   }
 
-  async addCategory(menuId: string, categoryId: string): Promise<any | null> {
+  async addCategory(menuId: string, categoryId: string): Promise<MenuDocument | null> {
     try {
-      // Convert menuId to ObjectId safely
-      const menuObjectId = this.validateObjectId(menuId);
-      
-      // Convert categoryId to ObjectId safely
-      const categoryObjectId = this.validateObjectId(categoryId);
-      
-      const collection = await this.getCollection();
-      
-      // First, find the menu
-      const menu = await collection.findOne({ _id: menuObjectId });
+      // Get the menu by ID
+      const menu = await this.findById(menuId);
       if (!menu) {
-        this.logger.debug(`Menu with ID ${menuId} not found for adding category`);
         return null;
       }
       
-      // Add the category if it doesn't exist
+      // Initialize categories array if it doesn't exist
       if (!menu.categories) {
         menu.categories = [];
       }
       
-      const categoryExists = menu.categories.some(
-        (catId: any) => catId.toString() === categoryObjectId.toString()
+      // Check if category already exists in the menu
+      const categoryExists = menu.categories.some(catId => 
+        catId.toString() === categoryId.toString()
       );
       
-      if (!categoryExists) {
-        menu.categories.push(categoryObjectId);
-        menu.updatedAt = new Date();
-        menu.version = (menu.version || 0) + 1;
-        
-        // Update the menu
-        const updateResult = await collection.updateOne(
-          { _id: menuObjectId },
-          { $set: menu }
-        );
-        
-        if (updateResult.modifiedCount === 0) {
-          this.logger.debug(`No document was modified for menu ID ${menuId}`);
-          return null;
-        }
+      // If category already exists, return the menu as is
+      if (categoryExists) {
+        return menu;
       }
       
-      // Fetch the updated document
-      return collection.findOne({ _id: menuObjectId });
+      // Add the category ID to the menu
+      await this.collection.updateOne(
+        { _id: this.validateObjectId(menuId) } as any,
+        { $addToSet: { categories: categoryId } }
+      );
+      
+      // Get the updated menu
+      return this.findById(menuId);
     } catch (error) {
       this.logger.error(`Error adding category to menu: ${error.message}`);
       return null;
     }
   }
 
-  async removeCategory(menuId: string, categoryId: string): Promise<any | null> {
+  async removeCategory(menuId: string, categoryId: string): Promise<MenuDocument | null> {
     try {
-      // Convert menuId to ObjectId safely
-      const menuObjectId = this.validateObjectId(menuId);
-      
-      // Convert categoryId to ObjectId safely
-      const categoryObjectId = this.validateObjectId(categoryId);
-      
-      const collection = await this.getCollection();
-      
-      // First, find the menu
-      const menu = await collection.findOne({ _id: menuObjectId });
+      // Get the menu by ID
+      const menu = await this.findById(menuId);
       if (!menu) {
-        this.logger.debug(`Menu with ID ${menuId} not found for removing category`);
         return null;
       }
       
-      // Remove the category if it exists
-      if (menu.categories && menu.categories.length > 0) {
-        menu.categories = menu.categories.filter(
-          (catId: any) => catId.toString() !== categoryObjectId.toString()
-        );
-        
-        menu.updatedAt = new Date();
-        menu.version = (menu.version || 0) + 1;
-        
-        // Update the menu
-        const updateResult = await collection.updateOne(
-          { _id: menuObjectId },
-          { $set: menu }
-        );
-        
-        if (updateResult.modifiedCount === 0) {
-          this.logger.debug(`No document was modified for menu ID ${menuId}`);
-          return null;
-        }
+      // If the menu has no categories, return it as is
+      if (!menu.categories || menu.categories.length === 0) {
+        return menu;
       }
       
-      // Fetch the updated document
-      return collection.findOne({ _id: menuObjectId });
+      // Remove the category ID from the menu
+      await this.collection.updateOne(
+        { _id: this.validateObjectId(menuId) } as any,
+        { $pull: { categories: categoryId } as any }
+      );
+      
+      // Get the updated menu
+      return this.findById(menuId);
     } catch (error) {
       this.logger.error(`Error removing category from menu: ${error.message}`);
       return null;
@@ -285,7 +341,7 @@ export class MenuRepository extends BaseRepository implements OnModuleInit, IMen
         menu.version = (menu.version || 0) + 1;
         
         const updateResult = await collection.updateOne(
-          { _id: objectId },
+          { _id: objectId } as any,
           { $set: menu }
         );
         
@@ -295,7 +351,7 @@ export class MenuRepository extends BaseRepository implements OnModuleInit, IMen
         }
         
         // Fetch and return the updated document
-        return collection.findOne({ _id: objectId });
+        return collection.findOne({ _id: objectId } as any);
       } else {
         // If it doesn't have an _id, it's a new menu
         const now = new Date();
@@ -315,35 +371,120 @@ export class MenuRepository extends BaseRepository implements OnModuleInit, IMen
     }
   }
 
-  async findMenuByItemId(itemId: string): Promise<any | null> {
+  async findMenuByItemId(itemId: string): Promise<MenuDocument[]> {
     try {
+      // First get the item to find its category
+      const itemsCollection = await this.mongoDBService.getCollection('menuItems');
+      
+      let itemObjectId;
+      try {
+        itemObjectId = this.validateObjectId(itemId);
+      } catch (error) {
+        // Continue with string ID
+      }
+      
+      // Create a query that checks for both ObjectId and string representations
+      const query = {
+        $or: [
+          { _id: itemObjectId },
+          { _id: itemId }
+        ]
+      };
+      
+      const item = await itemsCollection.findOne(query);
+      
+      if (!item) {
+        return [];
+      }
+      
+      // Find menu that has this item's category
+      const categoryId = item.categoryId;
+      if (!categoryId) {
+        return [];
+      }
+      
+      return this.findMenuByCategoryId(categoryId.toString());
+    } catch (error) {
+      this.logger.error(`Error finding menu by item ID: ${error.message}`);
+      return [];
+    }
+  }
+
+  async findMenuByCategoryId(categoryId: string): Promise<MenuDocument[]> {
+    try {
+      let categoryObjectId;
+      
+      try {
+        categoryObjectId = this.validateObjectId(categoryId);
+      } catch (error) {
+        // Use string ID if not a valid ObjectId
+      }
+      
+      // Create a query that checks for both ObjectId and string representations
+      const query = {
+        $or: [
+          { categories: { $in: [categoryObjectId] } },
+          { categories: { $in: [categoryId] } }
+        ]
+      };
+      
+      // Get the collection
       const collection = await this.getCollection();
       
-      // Find all menus
-      const menus = await collection.find().toArray();
+      // Find menus with this category
+      const menus = await collection.find(query).toArray();
+      return menus as MenuDocument[];
+    } catch (error) {
+      this.logger.error(`Error finding menu by category ID: ${error.message}`);
+      return [];
+    }
+  }
+
+  async count(filter: any = {}): Promise<number> {
+    try {
+      // Process the filter to convert string IDs to ObjectIds if needed
+      const processedFilter: any = {};
       
-      // Iterate through menus and their categories to find the item
-      for (const menu of menus) {
-        if (!menu.categories) continue;
-        
-        for (const category of menu.categories) {
-          if (!category.items) continue;
-          
-          // Check if the item exists in this category
-          const itemExists = category.items.some((item: any) => 
-            item.id === itemId || item._id?.toString() === itemId
-          );
-          
-          if (itemExists) {
-            return menu;
-          }
+      // Handle restaurant ID conversion if present
+      if (filter.restaurantId && typeof filter.restaurantId === 'string') {
+        try {
+          processedFilter.restaurantId = new ObjectId(filter.restaurantId);
+        } catch (error) {
+          this.logger.error(`Invalid restaurantId format: ${filter.restaurantId}`);
         }
       }
       
-      return null;
+      // Handle _id conversion if present
+      if (filter._id && typeof filter._id === 'string') {
+        try {
+          processedFilter._id = new ObjectId(filter._id);
+        } catch (error) {
+          this.logger.error(`Invalid _id format: ${filter._id}`);
+        }
+      }
+      
+      // Copy non-ID filters directly
+      Object.keys(filter).forEach(key => {
+        if (!['restaurantId', '_id'].includes(key)) {
+          processedFilter[key] = filter[key];
+        }
+      });
+      
+      const collection = await this.getCollection();
+      
+      // Execute the count with processed filter
+      return collection.countDocuments(processedFilter);
     } catch (error) {
-      this.logger.error(`Error finding menu by item ID: ${error.message}`);
-      return null;
+      this.logger.error(`Error in count: ${error.message}`);
+      return 0;
     }
+  }
+
+  async getCategoryCollection(): Promise<any> {
+    return this.mongoDBService.getCollection('categories');
+  }
+
+  async getMenuItemCollection(): Promise<any> {
+    return this.mongoDBService.getCollection('menuItems');
   }
 } 

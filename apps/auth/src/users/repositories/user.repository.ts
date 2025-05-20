@@ -1,12 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { User } from '../entities/user.entity';
-import { UserRole } from '@app/common';
+import { UserRole, LoggerFactory } from '@app/common';
 
 @Injectable()
 export class UserRepository extends Repository<User> {
-  private readonly logger = new Logger(UserRepository.name);
+  private readonly logger = LoggerFactory.getLogger(UserRepository.name);
 
   constructor(@InjectDataSource() private dataSource: DataSource) {
     super(User, dataSource.createEntityManager());

@@ -18,8 +18,9 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { MenuItemService } from '../services';
+import { CachedMenuItemService } from '../services/cached-menu-item.service';
 import { ApiController, ApiPaginatedResponse, ApiPaginatioQuery, ApiAuth } from '@app/common/swagger';
-import { RateLimit } from '@app/common/rate-limiter';
+import { DynamicRateLimit } from '@app/common/rate-limiter';
 import { JwtAuthGuard, RolesGuard, Roles, UserRole } from '@app/common';
 import { 
   CreateMenuItemDto, 
@@ -37,10 +38,10 @@ import {
 @Controller('menu-items')
 @ApiController('menu-items')
 export class MenuItemController {
-  constructor(private readonly menuItemService: MenuItemService) {}
+  constructor(private readonly menuItemService: CachedMenuItemService) {}
 
   @Get()
-  @RateLimit('MENU', 'findAllItems')
+  @DynamicRateLimit('MENU', 'findAllItems')
   @ApiOperation({ summary: 'Get all menu items with pagination' })
   @ApiPaginatioQuery()
   @ApiQuery({ name: 'categoryId', required: false, type: String, description: 'Filter items by category ID' })
@@ -68,7 +69,7 @@ export class MenuItemController {
   }
 
   @Get('search')
-  @RateLimit('MENU', 'searchItems')
+  @DynamicRateLimit('MENU', 'searchItems')
   @ApiOperation({ summary: 'Search menu items with advanced filtering' })
   @ApiQuery({ name: 'query', required: false, type: String, description: 'Text search query' })
   @ApiQuery({ name: 'categoryId', required: false, type: String, description: 'Filter by category ID' })
@@ -104,7 +105,7 @@ export class MenuItemController {
   }
 
   @Get(':id')
-  @RateLimit('MENU', 'findItemById')
+  @DynamicRateLimit('MENU', 'findItemById')
   @ApiOperation({ summary: 'Get a menu item by ID' })
   @ApiParam({ name: 'id', description: 'Menu item ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Menu item found', type: MenuItemResponseDto })
@@ -118,7 +119,7 @@ export class MenuItemController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
   @ApiAuth()
-  @RateLimit('MENU', 'createItem')
+  @DynamicRateLimit('MENU', 'createItem')
   @ApiOperation({ summary: 'Create a new menu item' })
   @ApiResponse({ status: HttpStatus.CREATED, description: 'Menu item created', type: MenuItemResponseDto })
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input' })
@@ -134,7 +135,7 @@ export class MenuItemController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
   @ApiAuth()
-  @RateLimit('MENU', 'updateItem')
+  @DynamicRateLimit('MENU', 'updateItem')
   @ApiOperation({ summary: 'Update a menu item' })
   @ApiParam({ name: 'id', description: 'Menu item ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Menu item updated', type: MenuItemResponseDto })
@@ -151,7 +152,7 @@ export class MenuItemController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
   @ApiAuth()
-  @RateLimit('MENU', 'deleteItem')
+  @DynamicRateLimit('MENU', 'deleteItem')
   @ApiOperation({ summary: 'Delete a menu item' })
   @ApiParam({ name: 'id', description: 'Menu item ID' })
   @ApiResponse({ status: HttpStatus.NO_CONTENT, description: 'Menu item deleted' })
@@ -168,7 +169,7 @@ export class MenuItemController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
   @ApiAuth()
-  @RateLimit('MENU', 'updateItemAvailability')
+  @DynamicRateLimit('MENU', 'updateItemAvailability')
   @ApiOperation({ summary: 'Update menu item availability' })
   @ApiParam({ name: 'id', description: 'Menu item ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Menu item availability updated', type: MenuItemResponseDto })
@@ -184,7 +185,7 @@ export class MenuItemController {
   }
 
   @Get(':id/options')
-  @RateLimit('MENU', 'getItemOptions')
+  @DynamicRateLimit('MENU', 'getItemOptions')
   @ApiOperation({ summary: 'Get all options for a menu item' })
   @ApiParam({ name: 'id', description: 'Menu item ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Menu item options retrieved', type: [OptionTypeDto] })
@@ -198,7 +199,7 @@ export class MenuItemController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
   @ApiAuth()
-  @RateLimit('MENU', 'addItemOption')
+  @DynamicRateLimit('MENU', 'addItemOption')
   @ApiOperation({ summary: 'Add a new option to a menu item' })
   @ApiParam({ name: 'id', description: 'Menu item ID' })
   @ApiBody({ type: CreateOptionTypeDto })
@@ -220,7 +221,7 @@ export class MenuItemController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
   @ApiAuth()
-  @RateLimit('MENU', 'updateItemOption')
+  @DynamicRateLimit('MENU', 'updateItemOption')
   @ApiOperation({ summary: 'Update an option of a menu item' })
   @ApiParam({ name: 'id', description: 'Menu item ID' })
   @ApiParam({ name: 'optionId', description: 'Option unique identifier' })
@@ -243,7 +244,7 @@ export class MenuItemController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.RESTAURANT)
   @ApiAuth()
-  @RateLimit('MENU', 'removeItemOption')
+  @DynamicRateLimit('MENU', 'removeItemOption')
   @ApiOperation({ summary: 'Remove an option from a menu item' })
   @ApiParam({ name: 'id', description: 'Menu item ID' })
   @ApiParam({ name: 'optionId', description: 'Option unique identifier' })
@@ -257,6 +258,6 @@ export class MenuItemController {
     @Param('id') id: string,
     @Param('optionId') optionId: string
   ): Promise<void> {
-    await this.menuItemService.removeOptionById(id, optionId);
+    await this.menuItemService.removeOption(id, optionId);
   }
 } 

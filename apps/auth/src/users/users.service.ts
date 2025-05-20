@@ -2,8 +2,6 @@ import {
   Injectable, 
   ConflictException, 
   NotFoundException,
-  Logger, 
-  forwardRef,
   Inject
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
@@ -12,94 +10,136 @@ import { IsNull, Not, Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { UserRole } from '@app/common';
-import { AuthService } from '../auth.service';
+import { UserRole, LoggerFactory } from '@app/common';
+import { AuthFacade } from '../auth/auth.facade';
 import { UserResponseDto } from './dto/user-response.dto';
 import { plainToInstance } from 'class-transformer';
+import { AuthErrorHandlerService } from '../common/auth-error-handler.service';
+import { hash } from 'bcryptjs';
 
 @Injectable()
 export class UsersService {
-  private readonly logger = new Logger(UsersService.name);
+  private readonly logger = LoggerFactory.getLogger(UsersService.name);
 
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
-    @Inject(forwardRef(() => AuthService))
-    private readonly authService: AuthService
+    @Inject('AUTH_FACADE')
+    private readonly authFacade: AuthFacade,
+    @Inject('AuthErrorHandler')
+    private readonly errorHandler: AuthErrorHandlerService
   ) {}
   private readonly MAX_FAILED_ATTEMPTS = 8;
   private readonly LOCK_DURATION_MS = 15 * 60 * 1000; 
 
-  async create(createUserDto: Partial<CreateUserDto>): Promise<User> {
-    try {
-      const existingUser = await this.findByEmail(createUserDto.email);
-      if (existingUser) {
-        throw new ConflictException('User already exists');
-      }
-      
-      let hashedPassword = null;
-      if (createUserDto.password) {
-        hashedPassword = await bcrypt.hash(createUserDto.password, 10);
-      }
-      
-      const userData = {
-        ...createUserDto,
-        password: hashedPassword, // remains null if no password is provided (Google users)
-        roles: createUserDto.roles || [UserRole.CUSTOMER],
-        isActive: true,
-      };
-      
-      return await this.userRepository.save(this.userRepository.create(userData));
-    } catch (error) {
-      this.logger.error(`User creation error: ${error.message}`);
-      throw error;
-    }
-  }
-  
-  // Get user entity for internal use
-  public async getUserEntity(id: string): Promise<User> {
-    const user = await this.userRepository.findOne({ 
-      where: { id },
-      select: ['id', 'email', 'firstName', 'lastName', 'roles', 'isActive', 'password', 'googleId', 'isEmailVerified', 'createdAt', 'updatedAt']
+  /**
+   * Create a new user
+   */
+  async create(createUserDto: { 
+    email: string; 
+    password: string;
+    firstName: string;
+    lastName: string;
+  }): Promise<User> {
+    this.logger.log(`Creating user with email: ${createUserDto.email}`);
+
+    const hashedPassword = await hash(createUserDto.password, 10);
+    
+    const user = this.userRepository.create({
+      email: createUserDto.email,
+      password: hashedPassword,
+      firstName: createUserDto.firstName,
+      lastName: createUserDto.lastName,
     });
+
+    return this.userRepository.save(user);
+  }
+
+  /**
+   * Find a user by email
+   */
+  async findByEmail(email: string): Promise<User | null> {
+    this.logger.debug(`Finding user by email: ${email}`);
+    return this.userRepository.findOne({ where: { email } });
+  }
+
+  /**
+   * Find a user by ID
+   */
+  async findById(id: string): Promise<UserResponseDto | null> {
+    this.logger.debug(`Finding user by ID: ${id}`);
+    const user = await this.userRepository.findOne({ where: { id } });
     
     if (!user) {
-      throw new NotFoundException('User not found');
+      return null;
     }
     
-    return user;
+    // Return a simplified user object without sensitive data
+    return {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      roles: user.roles,
+      isEmailVerified: user.isEmailVerified,
+      isActive: user.isActive,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
   }
 
-  // Get user DTO for API responses
-  async findById(id: string): Promise<UserResponseDto> {
-    const user = await this.getUserEntity(id);
-    return plainToInstance(UserResponseDto, user);
-  }
-
-  async findByEmail(email: string): Promise<User | null> {
+  /**
+   * Find a user by ID with password included
+   * This method should only be used for authentication purposes
+   */
+  async findByIdWithPassword(id: string): Promise<User | null> {
+    this.logger.debug(`Finding user by ID with password: ${id}`);
     return this.userRepository.findOne({ 
-      where: { email },
-      relations: [] // Add relations if needed
+      where: { id },
+      select: ['id', 'email', 'firstName', 'lastName', 'roles', 'isActive', 'password', 'isEmailVerified', 'createdAt', 'updatedAt']
     });
+  }
+
+  /**
+   * Update a user
+   */
+  async update(id: string, updateUserDto: Partial<User>): Promise<User> {
+    this.logger.log(`Updating user with ID: ${id}`);
+    await this.userRepository.update(id, updateUserDto);
+    return this.userRepository.findOne({ where: { id } });
+  }
+
+  /**
+   * Delete a user
+   */
+  async remove(id: string): Promise<void> {
+    this.logger.log(`Removing user with ID: ${id}`);
+    await this.userRepository.delete(id);
+  }
+
+  // Get user entity for internal use
+  public async getUserEntity(id: string): Promise<User> {
+    try {
+      const user = await this.userRepository.findOne({ 
+        where: { id },
+        select: ['id', 'email', 'firstName', 'lastName', 'roles', 'isActive', 'password', 'googleId', 'isEmailVerified', 'createdAt', 'updatedAt']
+      });
+      
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+      
+      return user;
+    } catch (error) {
+      return this.errorHandler.handleUserError(error);
+    }
   }
 
   async findAll(): Promise<User[]> {
     try {
       return await this.userRepository.find();
     } catch (error) {
-      this.logger.error(`Error fetching all users: ${error.message}`);
-      throw error;
-    }
-  }
-
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
-    try {
-      const user = await this.findById(id);
-      Object.assign(user, updateUserDto);
-      return await this.userRepository.save(user);
-    } catch (error) {
-      this.logger.error(`User update error: ${error.message}`);
-      throw error;
+      return this.errorHandler.handleUserError(error);
     }
   }
 
@@ -109,8 +149,7 @@ export class UsersService {
       user.password = hashedPassword;
       return await this.userRepository.save(user);
     } catch (error) {
-      this.logger.error(`Password update error: ${error.message}`);
-      throw error;
+      return this.errorHandler.handleUserError(error);
     }
   }
 
@@ -119,8 +158,7 @@ export class UsersService {
       const user = await this.getUserEntity(id);
       await this.userRepository.remove(user);
     } catch (error) {
-      this.logger.error(`User deletion error: ${error.message}`);
-      throw error;
+      return this.errorHandler.handleUserError(error);
     }
   }
 

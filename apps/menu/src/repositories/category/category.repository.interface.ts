@@ -66,4 +66,10 @@ export interface ICategoryRepository {
    * @param itemId Item ID
    */
   removeItem(categoryId: string, itemId: string): Promise<any | null>;
+
+  /**
+   * Get direct access to the MongoDB category collection
+   * @returns Promise resolving to the MongoDB collection
+   */
+  getCategoryCollection(): Promise<any>;
 } 

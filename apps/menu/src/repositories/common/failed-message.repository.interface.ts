@@ -1,4 +1,19 @@
-import { FailedMessage } from '../../schemas';
+import { BaseDocument } from '@app/common/database/mongodb/mongo.types';
+import { Sort } from 'mongodb';
+
+/**
+ * Document interface for FailedMessage in MongoDB
+ */
+export interface FailedMessageDocument extends BaseDocument {
+  pattern: string;
+  payload: any;
+  retryCount: number;
+  processed: boolean;
+  lastError?: {
+    message: string;
+    timestamp?: string;
+  };
+}
 
 /**
  * Interface for the failed message repository
@@ -6,18 +21,27 @@ import { FailedMessage } from '../../schemas';
  */
 export interface IFailedMessageRepository {
   /**
-   * Save a failed message to the database
+   * Save a failed message to the repository
    * @param pattern The event pattern
    * @param payload The event payload
-   * @param error Optional error message
+   * @param error Error message
    */
-  saveFailedMessage(pattern: string, payload: any, error?: string): Promise<FailedMessage>;
+  saveFailedMessage(pattern: string, payload: any, error: string): Promise<FailedMessageDocument>;
 
   /**
-   * Get all unprocessed failed messages
+   * Find all messages with optional filtering
+   * @param filter Filter to apply
+   * @param page Page number (1-based)
+   * @param limit Number of items per page
+   * @param sort Sorting options
+   */
+  findAll(filter?: any, page?: number, limit?: number, sort?: Sort): Promise<FailedMessageDocument[]>;
+
+  /**
+   * Get all unprocessed messages
    * @param limit Maximum number of messages to retrieve
    */
-  getUnprocessedMessages(limit?: number): Promise<FailedMessage[]>;
+  getUnprocessedMessages(limit?: number): Promise<FailedMessageDocument[]>;
 
   /**
    * Mark a failed message as processed
@@ -30,7 +54,7 @@ export interface IFailedMessageRepository {
    * @param id The message ID
    * @param error The error message
    */
-  updateRetryCount(id: string, error?: string): Promise<FailedMessage>;
+  updateRetryCount(id: string, error?: string): Promise<FailedMessageDocument>;
 
   /**
    * Delete processed messages older than the specified date

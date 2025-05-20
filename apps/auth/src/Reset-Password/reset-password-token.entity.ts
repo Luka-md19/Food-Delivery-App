@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 
 @Entity('reset_password_tokens')
@@ -9,15 +9,19 @@ export class ResetPasswordToken {
   @Column({ unique: true })
   token: string;
 
-  @ManyToOne(() => User, user => user.resetPasswordTokens, { onDelete: 'CASCADE' })
-  user: User;
+  @Column({ name: 'user_id' })
+  userId: string;
 
-  @Column()
-  expiresAt: Date;
+  @ManyToOne(() => User, user => user.resetPasswordTokens)
+  @JoinColumn({ name: 'user_id' })
+  user: User;
 
   @Column({ default: false })
   used: boolean;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
-}
+
+  @Column()
+  expiresAt: Date;
+} 
