@@ -1,0 +1,604 @@
+{
+    "root_group": {
+        "groups": {},
+        "checks": {},
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "metrics": {
+        "vus": {
+            "max": 364,
+            "value": 364,
+            "min": 0
+        },
+        "category_create_count": {
+            "count": 21141,
+            "rate": 33.917320395422664
+        },
+        "category_get_success_rate": {
+            "passes": 0,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.98": false
+            },
+            "value": 0
+        },
+        "category_get_duration": {
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "max": 0,
+            "thresholds": {
+                "p(95)<2000": false,
+                "p(99)<4000": false
+            }
+        },
+        "menu_delete_duration": {
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "max": 0,
+            "p(90)": 0,
+            "p(95)": 0,
+            "thresholds": {
+                "p(95)<3000": false,
+                "p(99)<5000": false
+            }
+        },
+        "menu_delete_success_rate": {
+            "passes": 0,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.95": false
+            },
+            "value": 0
+        },
+        "menu_get_duration": {
+            "max": 1418.4909,
+            "p(90)": 102.60792000000001,
+            "p(95)": 175.68766999999988,
+            "avg": 39.59344652638472,
+            "min": 0,
+            "med": 11.4861,
+            "thresholds": {
+                "p(95)<2000": false,
+                "p(99)<4000": false
+            }
+        },
+        "iteration_duration": {
+            "max": 7555.903,
+            "p(90)": 2855.50958,
+            "p(95)": 3005.6914799999995,
+            "avg": 1657.0120740932834,
+            "min": 5.7869,
+            "med": 1653.752
+        },
+        "category_update_count": {
+            "count": 2598,
+            "rate": 4.168071443512988
+        },
+        "category_delete_duration": {
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "max": 0,
+            "p(90)": 0,
+            "p(95)": 0,
+            "thresholds": {
+                "p(95)<3000": false,
+                "p(99)<5000": false
+            }
+        },
+        "menu_get_success_rate": {
+            "passes": 110159,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.98": false
+            },
+            "value": 1
+        },
+        "menu_item_delete_success_rate": {
+            "passes": 0,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.95": false
+            },
+            "value": 0
+        },
+        "http_req_duration": {
+            "p(90)": 131.92804000000004,
+            "p(95)": 218.65715999999966,
+            "avg": 49.04484623895745,
+            "min": 0,
+            "med": 12.4964,
+            "max": 1984.7233,
+            "thresholds": {
+                "p(95)<3000": false,
+                "p(99)<5000": false
+            }
+        },
+        "http_req_duration{expected_response:true}": {
+            "avg": 49.04484623895745,
+            "min": 0,
+            "med": 12.4964,
+            "max": 1984.7233,
+            "p(90)": 131.92804000000004,
+            "p(95)": 218.65715999999966
+        },
+        "category_delete_success_rate": {
+            "passes": 0,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.95": false
+            },
+            "value": 0
+        },
+        "data_sent": {
+            "rate": 65050.06424226216,
+            "count": 40546346
+        },
+        "http_req_sending": {
+            "avg": 0.017876996097376887,
+            "min": 0,
+            "med": 0,
+            "max": 8.5275,
+            "p(90)": 0,
+            "p(95)": 0
+        },
+        "menu_item_delete_duration": {
+            "p(95)": 0,
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "max": 0,
+            "p(90)": 0,
+            "thresholds": {
+                "p(95)<3000": false,
+                "p(99)<5000": false
+            }
+        },
+        "iterations": {
+            "count": 77999,
+            "rate": 125.1367992773555
+        },
+        "menu_update_count": {
+            "count": 2629,
+            "rate": 4.217805937257754
+        },
+        "menu_item_update_duration": {
+            "p(90)": 127.43814000000002,
+            "p(95)": 214.77734999999967,
+            "avg": 45.991135467063636,
+            "min": 1.0661,
+            "med": 11.7754,
+            "max": 877.8371,
+            "thresholds": {
+                "p(95)<3000": false,
+                "p(99)<5000": false
+            }
+        },
+        "menu_create_count": {
+            "count": 31416,
+            "rate": 50.401898564050825
+        },
+        "menu_item_create_count": {
+            "count": 10639,
+            "rate": 17.06855738550219
+        },
+        "menu_item_create_success_rate": {
+            "passes": 10639,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.95": false
+            },
+            "value": 1
+        },
+        "menu_create_success_rate": {
+            "passes": 31416,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.95": false
+            },
+            "value": 1
+        },
+        "http_req_failed": {
+            "passes": 0,
+            "fails": 259569,
+            "value": 0
+        },
+        "menu_create_duration": {
+            "min": 1.0288,
+            "med": 11.2105,
+            "max": 1428.7225,
+            "p(90)": 109.33385,
+            "p(95)": 187.04467499999998,
+            "avg": 41.13197177234536,
+            "thresholds": {
+                "p(95)<3000": false,
+                "p(99)<5000": false
+            }
+        },
+        "menu_get_count": {
+            "count": 110159,
+            "rate": 176.73232569128072
+        },
+        "menu_update_success_rate": {
+            "passes": 2629,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.95": false
+            },
+            "value": 1
+        },
+        "http_req_blocked": {
+            "med": 0,
+            "max": 13.9186,
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 0.005003341693345513,
+            "min": 0
+        },
+        "vus_max": {
+            "value": 800,
+            "min": 800,
+            "max": 800
+        },
+        "menu_item_create_duration": {
+            "min": 1.5094,
+            "med": 10.9921,
+            "max": 868.9414,
+            "p(90)": 118.52398000000001,
+            "p(95)": 206.49886000000024,
+            "avg": 44.45221510480321,
+            "thresholds": {
+                "p(95)<3000": false,
+                "p(99)<5000": false
+            }
+        },
+        "category_create_success_rate": {
+            "passes": 21141,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.95": false
+            },
+            "value": 1
+        },
+        "category_update_duration": {
+            "avg": 47.048844110854475,
+            "min": 1.0275,
+            "med": 11.2437,
+            "max": 879.8849,
+            "p(90)": 123.22775000000001,
+            "p(95)": 220.20568000000003,
+            "thresholds": {
+                "p(95)<3000": false,
+                "p(99)<5000": false
+            }
+        },
+        "menu_item_update_count": {
+            "count": 2687,
+            "rate": 4.310857570715704
+        },
+        "menu_item_update_success_rate": {
+            "passes": 2687,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.95": false
+            },
+            "value": 1
+        },
+        "http_req_receiving": {
+            "max": 15.3914,
+            "p(90)": 0.5352,
+            "p(95)": 0.5503,
+            "avg": 0.09456666127311134,
+            "min": 0,
+            "med": 0
+        },
+        "category_update_success_rate": {
+            "passes": 2598,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.95": false
+            },
+            "value": 1
+        },
+        "menu_item_get_success_rate": {
+            "passes": 0,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.98": false
+            },
+            "value": 0
+        },
+        "menu_update_duration": {
+            "avg": 43.56040707493335,
+            "min": 1.3201,
+            "med": 10.7255,
+            "max": 868.4619,
+            "p(90)": 120.13160000000018,
+            "p(95)": 204.30943999999988,
+            "thresholds": {
+                "p(95)<3000": false,
+                "p(99)<5000": false
+            }
+        },
+        "http_req_tls_handshaking": {
+            "p(95)": 0,
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "max": 0,
+            "p(90)": 0
+        },
+        "http_req_waiting": {
+            "p(95)": 218.57491999999993,
+            "avg": 48.932402581586864,
+            "min": 0,
+            "med": 12.3806,
+            "max": 1984.7233,
+            "p(90)": 131.80884
+        },
+        "data_received": {
+            "count": 420743956,
+            "rate": 675015.7305751676
+        },
+        "overall_success_rate": {
+            "passes": 181269,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.95": false
+            },
+            "value": 1
+        },
+        "category_create_duration": {
+            "p(95)": 197.5661,
+            "avg": 42.91837586206912,
+            "min": 0,
+            "med": 10.721,
+            "max": 879.3231,
+            "p(90)": 114.4178,
+            "thresholds": {
+                "p(95)<3000": false,
+                "p(99)<5000": false
+            }
+        },
+        "menu_item_get_duration": {
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "max": 0,
+            "thresholds": {
+                "p(95)<2000": false,
+                "p(99)<4000": false
+            }
+        },
+        "http_reqs": {
+            "count": 259569,
+            "rate": 416.43654215597496
+        },
+        "http_req_connecting": {
+            "avg": 0.0009937858527019788,
+            "min": 0,
+            "med": 0,
+            "max": 2.529,
+            "p(90)": 0,
+            "p(95)": 0
+        }
+    },
+    "setup_data": {
+        "createdEntities": {
+            "menuIds": [
+                "2c019add-2fb0-458a-b751-277b21291c85",
+                "4759118c-3ea4-4e2f-ac6e-95923e48f80c",
+                "557c7be2-1a30-471a-bea8-13aed7b6d172",
+                "7fdba454-8a9b-4b30-8e69-fbe8de74989e",
+                "ce6c991a-4cc6-48f5-8578-c73baf754709",
+                "4e42b474-e63d-4270-8536-97bf6708fd8d",
+                "d57dde85-5f08-4e6f-9598-f2daeb1c5fb7",
+                "30a58b78-49a0-43e2-b95d-2d824833ff49",
+                "37165f42-a288-49d9-b307-ad144ccf721b",
+                "3023b8c9-6ea4-4ba1-84a2-08eef1f6305a",
+                "22cbc0a1-e124-4798-aca1-5ac73f65f432",
+                "63f45c78-8fd0-4dfc-953b-addaef12167b",
+                "82f20b5f-965a-462c-9417-d8b0f991dc30",
+                "01418a8d-bea7-4ba2-b3a5-4a55fc866f50",
+                "020afd31-ba5e-442c-8b76-d6ad75c3d890",
+                "fb57b9a4-f0c1-42d4-b4a9-3d75cda083c6",
+                "16222d23-c572-4440-9aea-7e023085f570",
+                "58bf94e6-f4e5-4cd6-8bb0-ba42ecc1f58d",
+                "1ebba10b-329c-4f1e-97b2-d9974c6a22f2",
+                "35f602e2-eb74-40f5-a4b8-e0a0ca6380b0"
+            ],
+            "menuItemIds": [],
+            "categoryIds": []
+        },
+        "menus": [
+            {
+                "name": "Test Menu 147",
+                "restaurantId": "682c27720000554f3f557e2e",
+                "updatedAt": "2025-05-20T06:55:46.109Z",
+                "active": true,
+                "createdAt": "2025-05-20T06:55:46.109Z",
+                "description": "A test menu for load testing",
+                "id": "2c019add-2fb0-458a-b751-277b21291c85"
+            },
+            {
+                "active": true,
+                "createdAt": "2025-05-20T06:55:46.636Z",
+                "description": "A test menu for load testing",
+                "id": "4759118c-3ea4-4e2f-ac6e-95923e48f80c",
+                "name": "Test Menu 177",
+                "restaurantId": "682c27720000c61d6d5f5f72",
+                "updatedAt": "2025-05-20T06:55:46.636Z"
+            },
+            {
+                "id": "557c7be2-1a30-471a-bea8-13aed7b6d172",
+                "name": "Test Menu 877",
+                "restaurantId": "682c2773000009cd49178c3a",
+                "updatedAt": "2025-05-20T06:55:47.169Z",
+                "active": true,
+                "createdAt": "2025-05-20T06:55:47.169Z",
+                "description": "A test menu for load testing"
+            },
+            {
+                "updatedAt": "2025-05-20T06:55:47.684Z",
+                "active": true,
+                "createdAt": "2025-05-20T06:55:47.684Z",
+                "description": "A test menu for load testing",
+                "id": "7fdba454-8a9b-4b30-8e69-fbe8de74989e",
+                "name": "Test Menu 175",
+                "restaurantId": "682c27730000bcf8e9b7654c"
+            },
+            {
+                "active": true,
+                "createdAt": "2025-05-20T06:55:48.200Z",
+                "description": "A test menu for load testing",
+                "id": "ce6c991a-4cc6-48f5-8578-c73baf754709",
+                "name": "Test Menu 283",
+                "restaurantId": "682c277400007dad6fd94a38",
+                "updatedAt": "2025-05-20T06:55:48.200Z"
+            },
+            {
+                "updatedAt": "2025-05-20T06:55:48.717Z",
+                "active": true,
+                "createdAt": "2025-05-20T06:55:48.717Z",
+                "description": "A test menu for load testing",
+                "id": "4e42b474-e63d-4270-8536-97bf6708fd8d",
+                "name": "Test Menu 437",
+                "restaurantId": "682c27740000a42dabf25a12"
+            },
+            {
+                "active": true,
+                "createdAt": "2025-05-20T06:55:49.238Z",
+                "description": "A test menu for load testing",
+                "id": "d57dde85-5f08-4e6f-9598-f2daeb1c5fb7",
+                "name": "Test Menu 928",
+                "restaurantId": "682c27750000fffe8ae89b92",
+                "updatedAt": "2025-05-20T06:55:49.238Z"
+            },
+            {
+                "name": "Test Menu 736",
+                "restaurantId": "682c27750000cd759f501635",
+                "updatedAt": "2025-05-20T06:55:49.757Z",
+                "active": true,
+                "createdAt": "2025-05-20T06:55:49.757Z",
+                "description": "A test menu for load testing",
+                "id": "30a58b78-49a0-43e2-b95d-2d824833ff49"
+            },
+            {
+                "updatedAt": "2025-05-20T06:55:50.270Z",
+                "active": true,
+                "createdAt": "2025-05-20T06:55:50.270Z",
+                "description": "A test menu for load testing",
+                "id": "37165f42-a288-49d9-b307-ad144ccf721b",
+                "name": "Test Menu 488",
+                "restaurantId": "682c27760000d79fc029b0c2"
+            },
+            {
+                "id": "3023b8c9-6ea4-4ba1-84a2-08eef1f6305a",
+                "name": "Test Menu 283",
+                "restaurantId": "682c277600008f7f1f6998d7",
+                "updatedAt": "2025-05-20T06:55:50.783Z",
+                "active": true,
+                "createdAt": "2025-05-20T06:55:50.783Z",
+                "description": "A test menu for load testing"
+            },
+            {
+                "createdAt": "2025-05-20T06:55:51.305Z",
+                "description": "A test menu for load testing",
+                "id": "22cbc0a1-e124-4798-aca1-5ac73f65f432",
+                "name": "Test Menu 722",
+                "restaurantId": "682c2777000049ff3462319b",
+                "updatedAt": "2025-05-20T06:55:51.305Z",
+                "active": true
+            },
+            {
+                "updatedAt": "2025-05-20T06:55:51.817Z",
+                "active": true,
+                "createdAt": "2025-05-20T06:55:51.817Z",
+                "description": "A test menu for load testing",
+                "id": "63f45c78-8fd0-4dfc-953b-addaef12167b",
+                "name": "Test Menu 339",
+                "restaurantId": "682c27770000379edd4f809f"
+            },
+            {
+                "active": true,
+                "createdAt": "2025-05-20T06:55:52.327Z",
+                "description": "A test menu for load testing",
+                "id": "82f20b5f-965a-462c-9417-d8b0f991dc30",
+                "name": "Test Menu 200",
+                "restaurantId": "682c27780000c8789c954fe4",
+                "updatedAt": "2025-05-20T06:55:52.327Z"
+            },
+            {
+                "active": true,
+                "createdAt": "2025-05-20T06:55:52.838Z",
+                "description": "A test menu for load testing",
+                "id": "01418a8d-bea7-4ba2-b3a5-4a55fc866f50",
+                "name": "Test Menu 241",
+                "restaurantId": "682c27780000af6f53e3fd93",
+                "updatedAt": "2025-05-20T06:55:52.838Z"
+            },
+            {
+                "createdAt": "2025-05-20T06:55:53.360Z",
+                "description": "A test menu for load testing",
+                "id": "020afd31-ba5e-442c-8b76-d6ad75c3d890",
+                "name": "Test Menu 677",
+                "restaurantId": "682c2779000034870c557c98",
+                "updatedAt": "2025-05-20T06:55:53.360Z",
+                "active": true
+            },
+            {
+                "name": "Test Menu 990",
+                "restaurantId": "682c27790000a5c8d518ee1b",
+                "updatedAt": "2025-05-20T06:55:53.876Z",
+                "active": true,
+                "createdAt": "2025-05-20T06:55:53.876Z",
+                "description": "A test menu for load testing",
+                "id": "fb57b9a4-f0c1-42d4-b4a9-3d75cda083c6"
+            },
+            {
+                "description": "A test menu for load testing",
+                "id": "16222d23-c572-4440-9aea-7e023085f570",
+                "name": "Test Menu 366",
+                "restaurantId": "682c277a0000954d88f34643",
+                "updatedAt": "2025-05-20T06:55:54.398Z",
+                "active": true,
+                "createdAt": "2025-05-20T06:55:54.398Z"
+            },
+            {
+                "active": true,
+                "createdAt": "2025-05-20T06:55:54.915Z",
+                "description": "A test menu for load testing",
+                "id": "58bf94e6-f4e5-4cd6-8bb0-ba42ecc1f58d",
+                "name": "Test Menu 659",
+                "restaurantId": "682c277a00006d9aa5f2cb90",
+                "updatedAt": "2025-05-20T06:55:54.915Z"
+            },
+            {
+                "active": true,
+                "createdAt": "2025-05-20T06:55:55.426Z",
+                "description": "A test menu for load testing",
+                "id": "1ebba10b-329c-4f1e-97b2-d9974c6a22f2",
+                "name": "Test Menu 831",
+                "restaurantId": "682c277b0000023790c60339",
+                "updatedAt": "2025-05-20T06:55:55.426Z"
+            },
+            {
+                "id": "35f602e2-eb74-40f5-a4b8-e0a0ca6380b0",
+                "name": "Test Menu 799",
+                "restaurantId": "682c277b0000e8af2a0cd54a",
+                "updatedAt": "2025-05-20T06:55:55.949Z",
+                "active": true,
+                "createdAt": "2025-05-20T06:55:55.949Z",
+                "description": "A test menu for load testing"
+            }
+        ]
+    }
+}
