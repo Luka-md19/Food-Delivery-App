@@ -1,24 +1,65 @@
 version: '3.8'
-
 services:
-  # Auth Service
   auth:
     build:
       context: .
-      dockerfile: apps/auth/Dockerfile
+      dockerfile: ./apps/auth/Dockerfile
     container_name: auth-service
     restart: always
     env_file:
+      - .env
       - ./apps/auth/.env
     environment:
-      - USE_DOCKER=true
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
-      - RABBITMQ_QUEUE=email_verification
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      USE_DOCKER: 'true'
+      NODE_ENV: ${NODE_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      PORT: ${AUTH_PORT:-3000}
+      NODE_OPTIONS: --max-old-space-size=2048
+      PNPM_HOME: /root/.local/share/pnpm
+      NESTJS_DEBUG: 'true'
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      RABBITMQ_QUEUE: email_verification
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      AUTH_DATABASE_HOST: postgres
+      AUTH_DATABASE_PORT: 5432
+      AUTH_DATABASE_USER: ${DATABASE_USER}
+      AUTH_DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      AUTH_DATABASE_NAME: ${DATABASE_NAME}
+      AUTH_DATABASE_SYNC: 'true'
+      AUTH_DATABASE_DROP_BEFORE_SYNC: 'true'
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL}
+      EMAIL_HOST: ${EMAIL_HOST}
+      EMAIL_PORT: ${EMAIL_PORT}
+      EMAIL_USER: ${EMAIL_USER}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD}
+      EMAIL_FROM: ${EMAIL_FROM}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
+      DIRECT_JWT_SECRET: ${DIRECT_JWT_SECRET}
+      JWT_KEY_ROTATION_ENABLED: ${JWT_KEY_ROTATION_ENABLED}
+      JWT_KEY_ROTATION_INTERVAL_DAYS: ${JWT_KEY_ROTATION_INTERVAL_DAYS}
+      JWT_MAX_KEY_AGE_DAYS: ${JWT_MAX_KEY_AGE_DAYS}
+      SERVICE_TOKEN_EXPIRATION: ${SERVICE_TOKEN_EXPIRATION}
+      SERVICE_API_KEYS: ${SERVICE_API_KEYS}
+    deploy:
+      resources:
+        limits:
+          cpus: '2.5'
+          memory: 3G
+        reservations:
+          cpus: '1.5'
+          memory: 2G
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    mem_swappiness: 0
     ports:
-      - "3000:3000"
-      - "3001:3001"
+      - ${AUTH_PORT:-3000}:3000
+      - ${AUTH_TCP_PORT:-3001}:3001
     networks:
       - food-delivery-network
     depends_on:
@@ -29,13 +70,15 @@ services:
       redis:
         condition: service_started
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
+      test:
+        - CMD
+        - /bin/sh
+        - "-c"
+        - "nc -z localhost 3000 || exit 1"
+      interval: 15s
+      timeout: 5s
       retries: 3
-      start_period: 30s
-
-  # Menu Service
+      start_period: 10s
   menu:
     build:
       context: .
@@ -43,14 +86,16 @@ services:
     container_name: menu-service
     restart: always
     env_file:
-      - ./.env
+      - .env
       - ./apps/menu/.env
     environment:
-      - NODE_ENV=development
-      - PORT=3002
-      - TCP_PORT=3003
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=${MENU_PORT:-3002}
+      - TCP_PORT=${MENU_TCP_PORT:-3003}
       - USE_DOCKER=true
-      # MongoDB Atlas configuration
+      - NODE_OPTIONS=--max-old-space-size=2048
+      - PNPM_HOME=/root/.local/share/pnpm
+      - NESTJS_DEBUG=true
       - MONGODB_URI=${MONGODB_URI}
       - MONGODB_DATABASE=${MONGODB_DATABASE}
       - MONGODB_CONNECT_TIMEOUT=30000
@@ -61,9 +106,30 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - JWT_SECRET=${JWT_SECRET}
+      - SERVICE_ID=${MENU_SERVICE_ID}
+      - SERVICE_NAME=menu-service
+      - SERVICE_API_KEY=${SERVICE_API_KEY}
+      - SERVICE_PERMISSIONS=auth.read,user.read,menu.write,menu.read
+      - AUTH_SERVICE_URL=http://auth:3000
+      - ENABLE_RATE_LIMITING=true
+      - THROTTLE_TTL=60
+      - THROTTLE_LIMIT=100
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    mem_swappiness: 0
     ports:
-      - "3002:3002"
-      - "3003:3003"
+      - ${MENU_PORT:-3002}:3002
+      - ${MENU_TCP_PORT:-3003}:3003
     networks:
       - food-delivery-network
     depends_on:
@@ -75,13 +141,15 @@ services:
       - 8.8.8.8
       - 8.8.4.4
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
-      interval: 30s
+      test:
+        - CMD
+        - curl
+        - '-f'
+        - http://localhost:3002/health
+      interval: 60s
       timeout: 10s
       retries: 3
       start_period: 30s
-
-  # PostgreSQL Database (for Auth Service)
   postgres:
     image: postgres:17-alpine
     container_name: postgres
@@ -92,42 +160,60 @@ services:
       - POSTGRES_USER=${DATABASE_USER}
       - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
       - POSTGRES_DB=${DATABASE_NAME}
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    command: postgres -c shared_buffers=256MB -c max_connections=200
     ports:
-      - "5432:5432"
+      - ${POSTGRES_PORT:-5432}:5432
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - food-delivery-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test:
+        - CMD-SHELL
+        - pg_isready -U postgres
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
-
-  # MongoDB Database (for Menu Service)
   mongodb:
     image: mongo:6.0
     container_name: mongodb
     restart: always
+    env_file:
+      - ./apps/menu/.env
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    command: mongod --wiredTigerCacheSizeGB 0.25 --maxConns 200
     ports:
-      - "27017:27017"
+      - ${MONGODB_PORT:-27017}:27017
     volumes:
       - mongodb_data:/data/db
     environment:
-      - MONGO_INITDB_ROOT_USERNAME=root
-      - MONGO_INITDB_ROOT_PASSWORD=password
-      - MONGO_INITDB_DATABASE=menu
+      - MONGO_INITDB_ROOT_USERNAME=${MONGODB_USER:-root}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_PASSWORD:-password}
+      - MONGO_INITDB_DATABASE=${MONGODB_DATABASE:-menu}
     networks:
       - food-delivery-network
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
-      interval: 10s
+      test: echo 'db.adminCommand("ping").ok' | mongosh --quiet
+      interval: 30s
       timeout: 5s
-      retries: 5
+      retries: 3
       start_period: 30s
-
-  # pgAdmin (for PostgreSQL management)
   pgadmin:
     image: dpage/pgadmin4:8.14
     container_name: pgadmin
@@ -138,59 +224,103 @@ services:
       - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL}
       - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD}
     ports:
-      - "5050:80"
+      - ${PGADMIN_PORT:-5050}:80
     depends_on:
       - postgres
     networks:
       - food-delivery-network
-
-  # RabbitMQ (for message queuing)
   rabbitmq:
     image: rabbitmq:3.12-management
     container_name: rabbitmq
     restart: always
+    env_file:
+      - .env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.2'
+          memory: 256M
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - ${RABBITMQ_PORT:-5672}:5672
+      - ${RABBITMQ_MANAGEMENT_PORT:-15672}:15672
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq-init.sh:/opt/rabbitmq-init.sh
     environment:
-      - RABBITMQ_DEFAULT_USER=guest
-      - RABBITMQ_DEFAULT_PASS=guest
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-guest}
     networks:
       - food-delivery-network
     healthcheck:
-      test: rabbitmq-diagnostics -q ping
-      interval: 10s
-      timeout: 5s
+      test: ["CMD", "rabbitmq-diagnostics", "status"]
+      interval: 30s
+      timeout: 10s
       retries: 5
-      start_period: 30s
-
-  # Redis (for caching)
+      start_period: 60s
+    command: |
+      bash -c "
+        rabbitmq-server &
+        sleep 30 &&
+        chmod +x /opt/rabbitmq-init.sh &&
+        /opt/rabbitmq-init.sh &
+        wait
+      "
   redis:
     image: redis:alpine
     container_name: redis
     restart: always
     env_file:
       - ./apps/auth/.env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
     command: >
-      sh -c "if [ -z \"$$REDIS_PASSWORD\" ]; then redis-server; else redis-server --requirepass \"$$REDIS_PASSWORD\"; fi"
+      sh -c "if [ -z \"$$REDIS_PASSWORD\" ]; then redis-server --maxmemory 384mb --maxmemory-policy allkeys-lru; else
+      redis-server --maxmemory 384mb --maxmemory-policy allkeys-lru --requirepass \"$$REDIS_PASSWORD\"; fi"
     ports:
-      - "6379:6379"
+      - ${REDIS_PORT:-6379}:6379
     networks:
       - food-delivery-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test:
+        - CMD
+        - redis-cli
+        - ping
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
-
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    container_name: cadvisor
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - '8080:8080'
+    networks:
+      - food-delivery-network
 volumes:
-  postgres_data:
-  mongodb_data:
-  rabbitmq_data:
-
+  postgres_data: null
+  mongodb_data: null
+  rabbitmq_data: null
 networks:
   food-delivery-network:
-    driver: bridge 
+    driver: bridge
