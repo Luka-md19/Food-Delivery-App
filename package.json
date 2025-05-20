@@ -30,7 +30,6 @@
     "load-test:auth:baseline": "cd apps/auth/test/load-test/commands && run-baseline-test.bat",
     "load-test:auth:stress": "cd apps/auth/test/load-test/commands && run-stress-test.bat",
     "load-test:auth:realistic": "cd apps/auth/test/load-test/commands && run-realistic-test.bat",
-    
     "load-test:menu": "cd apps/menu/test/load-test/commands && run-all-tests.bat",
     "load-test:menu:smoke": "cd apps/menu/test/load-test && k6 run smoke-test.js",
     "load-test:menu:baseline": "cd apps/menu/test/load-test && k6 run baseline-test.js",
@@ -40,26 +39,20 @@
     "load-test:menu:realistic": "cd apps/menu/test/load-test && k6 run realistic-test.js",
     "load-test:menu:realistic-auth": "cd apps/menu/test/load-test/commands && run-realistic-auth-test.bat",
     "load-test:menu:realistic-auth:unix": "cd apps/menu/test/load-test/commands && sh run-realistic-auth-test.sh",
-    
     "load-test:run": "pnpm exec powershell -ExecutionPolicy Bypass -File ./scripts/run-load-tests.ps1",
     "load-test:auth:run": "pnpm exec powershell -ExecutionPolicy Bypass -File ./scripts/run-load-tests.ps1 auth",
     "load-test:menu:run": "pnpm exec powershell -ExecutionPolicy Bypass -File ./scripts/run-load-tests.ps1 menu",
     "load-test:auth:all": "pnpm exec powershell -ExecutionPolicy Bypass -File ./scripts/run-load-tests.ps1 auth all",
     "load-test:menu:all": "pnpm exec powershell -ExecutionPolicy Bypass -File ./scripts/run-load-tests.ps1 menu all",
-    
     "load-test:cleanup": "pnpm exec powershell -ExecutionPolicy Bypass -File ./scripts/cleanup-load-testing.ps1",
-    
     "docker:enable-rate-limit:auth": "pnpm exec powershell -ExecutionPolicy Bypass -File ./scripts/docker-enable-rate-limiting.ps1 auth",
     "docker:disable-rate-limit:auth": "pnpm exec powershell -ExecutionPolicy Bypass -File ./scripts/docker-disable-rate-limiting.ps1 auth",
     "docker:enable-rate-limit:menu": "pnpm exec powershell -ExecutionPolicy Bypass -File ./scripts/docker-enable-rate-limiting.ps1 menu",
     "docker:disable-rate-limit:menu": "pnpm exec powershell -ExecutionPolicy Bypass -File ./scripts/docker-disable-rate-limiting.ps1 menu",
-    
     "rate-limit:enable:all": "pnpm run docker:enable-rate-limit:auth && pnpm run docker:enable-rate-limit:menu",
     "rate-limit:disable:all": "pnpm run docker:disable-rate-limit:auth && pnpm run docker:disable-rate-limit:menu",
-    
     "optimize:load-test": "pnpm exec powershell -ExecutionPolicy Bypass -File ./scripts/optimize-for-load-test.ps1",
     "optimize:load-test:restore": "docker-compose restart",
-    
     "generate-report": "pnpm run generate-report:menu:baseline",
     "generate-report:menu:baseline": "pnpm exec powershell -ExecutionPolicy Bypass -File ./scripts/generate-test-report.ps1 -service menu -testType baseline",
     "generate-report:menu:stress": "pnpm exec powershell -ExecutionPolicy Bypass -File ./scripts/generate-test-report.ps1 -service menu -testType stress",
@@ -67,11 +60,9 @@
     "generate-report:auth:stress": "pnpm exec powershell -ExecutionPolicy Bypass -File ./scripts/generate-test-report.ps1 -service auth -testType stress",
     "generate-report:auth:baseline": "pnpm exec powershell -ExecutionPolicy Bypass -File ./scripts/generate-test-report.ps1 -service auth -testType baseline",
     "generate-report:auth:realistic": "pnpm exec powershell -ExecutionPolicy Bypass -File ./scripts/generate-test-report.ps1 -service auth -testType realistic",
-    
     "generate-reports": "pnpm exec powershell -ExecutionPolicy Bypass -File ./scripts/generate-html-reports.ps1",
     "generate-reports:menu": "pnpm exec powershell -ExecutionPolicy Bypass -File ./scripts/generate-html-reports.ps1 menu",
     "generate-reports:auth": "pnpm exec powershell -ExecutionPolicy Bypass -File ./scripts/generate-html-reports.ps1 auth",
-    
     "load-test:menu:report:stress": "pnpm run generate-report:menu:stress",
     "load-test:menu:report:baseline": "pnpm run generate-report:menu:baseline",
     "load-test:menu:report:smoke": "pnpm run generate-report:menu:smoke",
@@ -122,12 +113,15 @@
     "express": "^4.21.2",
     "google-auth-library": "^9.15.1",
     "helmet": "^8.1.0",
+    "html-minifier": "^4.0.0",
+    "html-minifier-terser": "^7.2.0",
     "ioredis": "^5.5.0",
     "joi": "^17.13.3",
     "jsonwebtoken": "^9.0.2",
     "lru-cache": "^11.1.0",
     "mongodb": "^6.14.0",
     "mongoose": "^8.11.0",
+    "multer": "^2.0.0",
     "nest-winston": "^1.10.2",
     "nestjs-throttler-storage-redis": "^0.5.1",
     "nodemailer": "^6.10.0",
